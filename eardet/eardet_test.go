@@ -25,14 +25,17 @@ import (
 var (
 	//to facilitate getting a duration for a packet
 	zeroTime = time.Unix(0, 0)
+	//to prevent compiler optimization at the wrong place
+	resGlob bool
+	linkCapacity float32 = 1.25
 )
 
 //test the min function
 func TestMin(t *testing.T) {
 	var tests = []struct{
-		a uint64
-		b uint64
-		want uint64
+		a uint32
+		b uint32
+		want uint32
 	}{
 		{1, 2, 1},
 		{2, 1, 1},
@@ -48,29 +51,25 @@ func TestMin(t *testing.T) {
 //test that resetFloor works correctly
 func TestResetFloor(t *testing.T) {
 	var tests = []struct{
-		alpha uint64
-		beta_th uint64
-		floor uint64
+		alpha uint32
+		beta_th uint32
+		floor uint32
 	}{
 		{100, 200 + numCounters, 200},
 		{100, 100 + numCounters, 0},
 	}
 	for _, test := range tests {
 		//set up
-		ed := NewEardetDtctr(test.alpha, test.beta_th, 0)
+		ed := NewEardetDtctr(test.alpha, test.beta_th, linkCapacity)
 		ed.floor = test.floor
 		//fill buckets to simulate a raised floor
-		for i := uint64(0); i < numCounters; i++ {
+		for i := uint32(0); i < numCounters; i++ {
 			ed.counters[i].count = ed.floor + i
 		}
-		//test that minCounter is set properly
-		if ed.minCounter != &ed.counters[0] {
-			t.Errorf("resetFloor failed: minCounter is %p but should be %p.", ed.minCounter, &ed.counters[0])
-		}
-		//test that buckets were properly decremented
+		//test that the buckets are properly decremented
 		temp := ed.minCounter
 		ed.resetFloor()
-		for i := uint64(0); i < numCounters; i++ {
+		for i := uint32(0); i < numCounters; i++ {
 			if ed.counters[i].count != i {
 				t.Errorf("resetFloor failed: Bucket %d should be %d but is %d.",
 				 i, i, ed.counters[i].count)
@@ -90,64 +89,72 @@ func TestResetFloor(t *testing.T) {
 
 //test that minCounter is reset properly if resetMin is called
 func TestResetMin(t *testing.T) {
-	alpha_test := uint64(500)
-	beta_th_test := uint64(1000)
-	ed := NewEardetDtctr(alpha_test, beta_th_test, 0)
+	alpha_test := uint32(500)
+	beta_th_test := uint32(1000)
+	ed := NewEardetDtctr(alpha_test, beta_th_test, linkCapacity)
 	//fill buckets
-	for i := uint64(0); i < numCounters; i++ {
+	for i := uint32(0); i < numCounters; i++ {
 		ed.counters[i].count = 150
 	}
 	//test with last bucket containing the smallest count
 	ed.counters[(numCounters - 1) % numCounters].count = 100
 	ed.resetMin()
-	if ed.minCounter != &ed.counters[numCounters - 1 % numCounters] {
+	if ed.minCounter != findMin(ed) {
 		t.Errorf("resetMin failed: ed.minCounter=%p, should be %p",
-		 ed.minCounter, &ed.counters[(numCounters - 1) % numCounters])
+		 ed.minCounter, findMin(ed))
 	}
 	//test with random bucket containing the smallest count
 	source := rand.NewSource(time.Now().UnixNano())
 	r := rand.New(source)
-	randNum := uint64(r.Uint32()) << 32 + uint64(r.Uint32())
+	randNum := r.Uint32()
 	ed.counters[randNum % numCounters].count = 50
 	ed.resetMin()
-	if ed.minCounter != &ed.counters[randNum % numCounters] {
+	if ed.minCounter != findMin(ed) {
 		t.Errorf("resetMin failed: ed.minCounter=%p, should be %p",
-		 ed.minCounter, &ed.counters[randNum % numCounters])
+		 ed.minCounter, findMin(ed))
 	}
 	//test with first bucket containing the smallest count
 	ed.counters[0].count = 25
 	ed.resetMin()
-	if ed.minCounter != &ed.counters[0] {
+	if ed.minCounter != findMin(ed) {
 		t.Errorf("resetMin failed: ed.minCounter=%p, should be %p",
-		 ed.minCounter, &ed.counters[0])
+		 ed.minCounter, findMin(ed))
 	}
 }
 
-//test if minCounter is reset after inserting one packet (resetMin is called)
+func findMin(ed *eardetDtctr) *counter {
+	temp := &ed.counters[0]
+	for i := 0; i < len(ed.counters); i++ {
+		if temp.count > ed.counters[i].count {
+			temp = &ed.counters[i]
+		}
+	}
+	return temp
+}
+
+//test if minCounter is reset after inserting packets (resetMin is called)
 func TestMinCounterIsResetAfterPacketInsertion(t *testing.T) {
-	alpha_test := uint64(500)
-	beta_th_test := uint64(1000)
-	ed := NewEardetDtctr(alpha_test, beta_th_test, 0)
-	//insert a packet
-	ed.processPkt(0, 100)
-	if ed.minCounter != &ed.counters[1 % numCounters] {
-		t.Errorf("resetMin failed: ed.minCounter=%p, should be %p",
-		 ed.minCounter, &ed.counters[1 % numCounters])
+	alpha_test := uint32(500)
+	beta_th_test := uint32(1000)
+	ed := NewEardetDtctr(alpha_test, beta_th_test, linkCapacity)
+	//insert a packets
+	i := 0
+	for ;i < len(ed.counters) - 1; i++ {
+		ed.processPkt(uint32(i), 100)
 	}
-	//insert another packet
-	ed.processPkt(1, 200)
-	if ed.minCounter != &ed.counters[2 % numCounters] {
+	ed.processPkt(uint32(i), 50)
+	
+	if ed.minCounter != findMin(ed) {
 		t.Errorf("resetMin failed: ed.minCounter=%p, should be %p",
-		 ed.minCounter, &ed.counters[2 % numCounters])
+		 ed.minCounter, findMin(ed))
 	}
-	// printAllBuckets(ed)
 }
 
 //insert a packet into the first matching bucket, count of that bucket is zero
 func TestProcessPktInsertNewFlowInZeroBucket(t *testing.T) {
-	alpha_test := uint64(500)
-	beta_th_test := uint64(5000)
-	ed := NewEardetDtctr(alpha_test, beta_th_test, 0)
+	alpha_test := uint32(500)
+	beta_th_test := uint32(5000)
+	ed := NewEardetDtctr(alpha_test, beta_th_test, linkCapacity)
 	//insert a packet into the first bucket
 	res := ed.processPkt(0, 200)
 	if res {
@@ -163,10 +170,10 @@ func TestProcessPktInsertNewFlowInZeroBucket(t *testing.T) {
 
 //insert a packet into the first matching bucket, the bucket count has already been incremented
 func TestProcessPktInsertFlowInAlreadyIncrementedBucket(t *testing.T) {
-	alpha_test := uint64(500)
-	beta_th_test := uint64(5000)
-	ed := NewEardetDtctr(alpha_test, beta_th_test, 0)
-	flowid1 := uint64(6)
+	alpha_test := uint32(500)
+	beta_th_test := uint32(5000)
+	ed := NewEardetDtctr(alpha_test, beta_th_test, linkCapacity)
+	flowid1 := uint32(1)
 	//insert a packet with flow id 6
 	res0 := ed.processPkt(flowid1, 500)
 	res1 := ed.processPkt(flowid1, 600)
@@ -176,21 +183,21 @@ func TestProcessPktInsertFlowInAlreadyIncrementedBucket(t *testing.T) {
 	if res1 {
 		t.Errorf("processPkt failed: Packet(%d, 600) wrongly detected.", flowid1)
 	}
-	if ed.counters[6 % numCounters].count != 1100 {
+	if ed.counters[1 % numCounters].count != 1100 {
 		t.Errorf("processPkt failed: Packet(6, 500) or Packet(6, 600) not correctly inserted.")
 	}
-	if b, i := allOtherBucketsAreZero(ed, 6); !b {
+	if b, i := allOtherBucketsAreZero(ed, 1); !b {
 		t.Errorf("processPkt failed: Bucket %d is not zero.", i)
 	}
 }
 
 //insert a packet into the second matching bucket, the first matching bucket is already taken by another flow
 func TestProcessPktInsertFlowInAlternateBucket(t *testing.T) {
-	alpha_test := uint64(500)
-	beta_th_test := uint64(5000)
-	flowid1 := uint64(0)
-	flowid2 := uint64(numCounters)
-	ed := NewEardetDtctr(alpha_test, beta_th_test, 0)
+	alpha_test := uint32(500)
+	beta_th_test := uint32(5000)
+	flowid1 := uint32(0x00000000)
+	flowid2 := uint32(0x00010000)
+	ed := NewEardetDtctr(alpha_test, beta_th_test, linkCapacity)
 	//insert first packet
 	res0 := ed.processPkt(flowid1, 500)
 	//insert second packet
@@ -201,19 +208,19 @@ func TestProcessPktInsertFlowInAlternateBucket(t *testing.T) {
 	if res1 {
 		t.Errorf("processPkt failed: Packet(%d, 600) wrongly detected.", flowid2)
 	}
-	if ed.counters[(flowid2 + 1) % numCounters].count != 600 {
-		t.Errorf("processPkt failed: Packet(%d, 600) not correctly inserted.", flowid2 + 1)
+	if ed.counters[((flowid2 & 0xFFFF0000) >> 16) % numCounters].count != 600 {
+		t.Errorf("processPkt failed: Packet(%x, 600) not correctly inserted.", flowid2)
 	}
 }
 
 //both matching buckets are already taken by other flows, here floor is not raised
 func TestInsertionFails(t *testing.T) {
-	alpha_test := uint64(500)
-	beta_th_test := uint64(5000)
-	flowid1 := uint64(0)
-	flowid2 := uint64(numCounters)
-	flowid3 := uint64(2*numCounters)
-	ed := NewEardetDtctr(alpha_test, beta_th_test, 0)
+	alpha_test := uint32(500)
+	beta_th_test := uint32(5000)
+	flowid1 := uint32(0)
+	flowid2 := uint32(0x00010000)
+	flowid3 := uint32(0x00020000)
+	ed := NewEardetDtctr(alpha_test, beta_th_test, linkCapacity)
 	//insert first and second packet
 	ed.processPkt(flowid1, 500)
 	ed.processPkt(flowid2, 600)
@@ -228,7 +235,7 @@ func TestInsertionFails(t *testing.T) {
 	if ed.counters[flowid1 % numCounters].count != 500 {
 		t.Errorf("processPkt failed: Packet(%d, 500) not correctly inserted.", flowid1)
 	}
-	if ed.counters[(flowid1 + 1) % numCounters].count != 600 {
+	if ed.counters[(flowid2 & 0xFFFF0000 >> 16) % numCounters].count != 600 {
 		t.Errorf("processPkt failed: Packet(%d, 600) not correctly inserted.", flowid2)
 	}
 	// printAllBuckets(ed)
@@ -236,18 +243,16 @@ func TestInsertionFails(t *testing.T) {
 
 //both matching buckets are already taken by other flows, here floor is raised
 func TestInsertionFailsFloorIsRaised(t *testing.T) {
-	alpha_test := uint64(500)
-	beta_th_test := uint64(5000)
-	flowid1 := uint64(numCounters + 1)
-	ed := NewEardetDtctr(alpha_test, beta_th_test, 0)
+	alpha_test := uint32(500)
+	beta_th_test := uint32(5000)
+	flowid1 := uint32(numCounters + 1)
+	ed := NewEardetDtctr(alpha_test, beta_th_test, linkCapacity)
 
 	//insert packets
-	for i := uint64(0); i < numCounters; i++ {
+	for i := uint32(0); i < numCounters; i++ {
 		ed.processPkt(i, alpha_test + i)
-		// fmt.Printf("minCounter set to bucket with flowid %d\n", ed.minCounter.flowID)
 	}
 	res := ed.processPkt(flowid1, 600)
-	// fmt.Printf("minCounter set to bucket with flowid %d\n", ed.minCounter.flowID)
 
 	if res {
 		t.Errorf("processPkt failed: Packet(%d, 600) wrongly detected.", flowid1)
@@ -255,20 +260,19 @@ func TestInsertionFailsFloorIsRaised(t *testing.T) {
 	if ed.floor != alpha_test {
 		t.Errorf("processPkt failed: floor not properly set, is %d should be %d.", ed.floor, alpha_test)
 	}
-	if ed.minCounter != &ed.counters[0] {
+	if ed.minCounter != findMin(ed) {
 		t.Errorf("processPkt failed: ed.minCounter=%p, should be %p",
-		 ed.minCounter, &ed.counters[0])
+		 ed.minCounter, findMin(ed))
 	}
-	// printAllBuckets(ed)
 }
 
 //Insert a packet into an empty bucket, test if it is detected as too big
-func TestProcessPktInsertAfterFloorRaised1(t *testing.T) {
-	alpha_test := uint64(500)
-	beta_th_test := uint64(5000)
-	ed := NewEardetDtctr(alpha_test, beta_th_test, 0)
-	flowid1 := uint64(numCounters + 1)
-	size1 := uint64(50001)
+func TestProcessPktInsertTooBig1(t *testing.T) {
+	alpha_test := uint32(500)
+	beta_th_test := uint32(5000)
+	ed := NewEardetDtctr(alpha_test, beta_th_test, linkCapacity)
+	flowid1 := uint32(numCounters + 1)
+	size1 := uint32(50001)
 	//insert packet
 	if !ed.processPkt(flowid1, size1) {
 		t.Errorf("processPkt failed: Returns false, should return true.")
@@ -276,12 +280,12 @@ func TestProcessPktInsertAfterFloorRaised1(t *testing.T) {
 }
 
 //Insert a packet into an already partly filled bucket, test if it is detected
-func TestProcessPktInsertAfterFloorRaised2(t *testing.T) {
-	alpha_test := uint64(500)
-	beta_th_test := uint64(5000)
-	ed := NewEardetDtctr(alpha_test, beta_th_test, 0)
-	flowid1 := uint64(numCounters + 1)
-	size1 := uint64(2501)
+func TestProcessPktInsertTooBig2(t *testing.T) {
+	alpha_test := uint32(500)
+	beta_th_test := uint32(5000)
+	ed := NewEardetDtctr(alpha_test, beta_th_test, linkCapacity)
+	flowid1 := uint32(numCounters + 1)
+	size1 := uint32(2501)
 	//insert packet
 	if ed.processPkt(flowid1, size1) {
 		t.Errorf("processPkt failed: Returns true, should return false.")
@@ -291,31 +295,13 @@ func TestProcessPktInsertAfterFloorRaised2(t *testing.T) {
 	}
 }
 
-//test that if floor raises high enough, resetFloor is actually triggered
-func TestResetFloorIsTriggered(t *testing.T) {
-	alpha_test := uint64(500)
-	beta_th_test := uint64(5000)
-	ed := NewEardetDtctr(alpha_test, beta_th_test, 0)
-	ed.floor = ed.maxFloor
-	for i := uint64(0); i < numCounters; i++ {
-		ed.counters[i].flowID = i
-		ed.counters[i].count = ed.floor + ed.beta_th
-	}
-	flowid1 := uint64(numCounters)
-	size1 := ed.alpha
-	ed.processPkt(flowid1, size1)
-	if ed.floor != ed.alpha {
-		t.Errorf("processPkt failed: ResetFloor was not properly triggered.")
-	}
-}
-
 //test that after raising the floor the rest of a packet is inserted correctly in the first matching bucket
 func TestInsertAfterRaisingFloor1(t *testing.T) {
-	alpha_test := uint64(500)
-	beta_th_test := uint64(5000)
-	ed := NewEardetDtctr(alpha_test, beta_th_test, 0)
+	alpha_test := uint32(500)
+	beta_th_test := uint32(5000)
+	ed := NewEardetDtctr(alpha_test, beta_th_test, linkCapacity)
 	//insert a packet into every bucket
-	for i := uint64(0); i <numCounters; i++ {
+	for i := uint32(0); i < numCounters; i++ {
 		ed.processPkt(i, 100)
 	}
 	//insert another packet
@@ -334,33 +320,32 @@ func TestInsertAfterRaisingFloor1(t *testing.T) {
 
 //test that after raising the floor the rest of a packet is inserted correctly in the second matching bucket
 func TestInsertAfterRaisingFloor2(t *testing.T) {
-	alpha_test := uint64(500)
-	beta_th_test := uint64(5000)
-	ed := NewEardetDtctr(alpha_test, beta_th_test, 0)
+	alpha_test := uint32(500)
+	beta_th_test := uint32(5000)
+	flowid1 := uint32(0x00010000)
+	ed := NewEardetDtctr(alpha_test, beta_th_test, linkCapacity)
 	//insert a packet into every bucket
-	for i := uint64(0); i <numCounters; i++ {
+	for i := uint32(0); i < numCounters; i++ {
 		ed.processPkt(i, 100)
 	}
 	//insert another packet
 	ed.processPkt(0, 100)
-	res := ed.processPkt(numCounters, 5200)
-	// printAllBuckets(ed)
+	res := ed.processPkt(flowid1, 5200)
 	if !res {
 		t.Errorf("processPkt failed: returns false, should return true")
 	}
-	if ed.counters[(numCounters + 1) % numCounters].count != 5200 {
-		t.Errorf("processPkt failed: count of bucket 0 is %d, should be %d.", ed.counters[(numCounters + 1) % numCounters].count, 5200)
+	if ed.counters[((flowid1 & 0xFFFF0000) >> 16) % numCounters].count != 5200 {
+		t.Errorf("processPkt failed: count of bucket 0 is %d, should be %d.", ed.counters[((flowid1 & 0xFFFF0000) >> 16)].count, 5200)
 	}
 	if ed.floor != 100 {
 		t.Errorf("processPkt Failed: floor should be 100, but is %d.", ed.floor)
 	}
-	// printAllBuckets(ed)
 }
 
 //this function should insert one virtual traffic packet before the real packet
 func TestDetectBasicInsert(t *testing.T) {
 	ed := NewEardetDtctr(500, 5000, 0.03)
-	ed.Detect(numCounters, 300, 600)
+	ed.Detect(1, 300, 600)
 	if ed.counters[0].count != 19 {
 		t.Errorf("Virtual traffic should increment bucket 0 to 19 but has to %d", ed.counters[0].count)
 	}
@@ -385,17 +370,81 @@ func TestDetectInsertMultiple(t *testing.T) {
 	// printAllBuckets(ed)
 }
 
+//test cuckoo hashing
+func TestDisplacement1(t *testing.T) {
+	ed := NewEardetDtctr(500, 1000, linkCapacity)
+	ed.processPkt(0x00020001, 100)
+	ed.processPkt(0x00040003, 200)
+	ed.processPkt(0x00030001, 300)
+	if ed.counters[2].count != 100 {
+		t.Errorf("Virtual traffic should increment bucket 2 to 100 but has to %d", ed.counters[2].count)
+	}
+	if ed.counters[3].count != 200 {
+		t.Errorf("Virtual traffic should increment bucket 3 to 200 but has to %d", ed.counters[3].count)
+	}
+	if ed.counters[1].count != 300 {
+		t.Errorf("Virtual traffic should increment bucket 1 to 300 but has to %d", ed.counters[1].count)
+	}
+}
+
+//test cuckoo hashing
+func TestDisplacement2(t *testing.T) {
+	ed := NewEardetDtctr(500, 1000, linkCapacity)
+	ed.processPkt(0x00030001, 100)
+	ed.processPkt(0x00020003, 400)
+	ed.processPkt(0x00040002, 200)
+	ed.processPkt(0x00020001, 300)
+	if ed.counters[2].count != 300 {
+		t.Errorf("Virtual traffic should increment bucket 2 to 300 but has to %d", ed.counters[2].count)
+	}
+	if ed.counters[1].count != 100 {
+		t.Errorf("Virtual traffic should increment bucket 1 to 100 but has to %d", ed.counters[1].count)
+	}
+	if ed.counters[4].count != 200 {
+		t.Errorf("Virtual traffic should increment bucket 4 to 200 but has to %d", ed.counters[4].count)
+	}
+	// printAllBuckets(ed)
+}
+
+//test cuckoo hashing
+func TestDisplacement3(t *testing.T) {
+	ed := NewEardetDtctr(500, 1000, linkCapacity)
+	ed.processPkt(0, 500)
+	ed.processPkt(0x00020001, 700)
+	ed.processPkt(0x00040003, 800)
+	ed.processPkt(0x00030001, 500)
+	ed.processPkt(0x00030002, 500)
+	for i := 5; i < len(ed.counters); i++ {
+		ed.processPkt(uint32(i), 500)
+	}
+	//decrement floor by 500
+	ed.processPkt(numCounters, 500)
+	ed.processPkt(0x00040002, 900)
+	ed.processPkt(0x00040001, 1000)
+
+	if ed.counters[1].count != 700 {
+		t.Errorf("Virtual traffic should increment bucket 1 to 700 but has to %d", ed.counters[1].count)
+	}
+	if ed.counters[3].count != 800 {
+		t.Errorf("Virtual traffic should increment bucket 3 to 800 but has to %d", ed.counters[3].count)
+	}
+	if ed.counters[4].count != 1500 {
+		t.Errorf("Virtual traffic should increment bucket 4 to 1500 but has to %d", ed.counters[4].count)
+	}
+	// printAllBuckets(ed)
+}
+
 func TestOverflow(t *testing.T) {
-	num := maxuint64
+	num := maxuint32
 	num++
 	if num != 0 {
-		t.Errorf("%d + 1 does not overflow as I thought it would.", maxuint64)
+		t.Errorf("%d + 1 does not overflow as I thought it would.", maxuint32)
 	}
 	
 }
 
-func allOtherBucketsAreZero(ed *eardetDtctr, flowid uint64) (bool, uint64) {
-	for i := uint64(0); i < numCounters; i++ {
+func allOtherBucketsAreZero(ed *eardetDtctr, flowid uint32) (bool, uint32) {
+	for i := uint32(0); i < numCounters; i++ {
 		if ed.counters[i].count != 0 && i != (flowid % numCounters) {
 			return false, i
 		}
@@ -404,40 +453,53 @@ func allOtherBucketsAreZero(ed *eardetDtctr, flowid uint64) (bool, uint64) {
 }
 
 func printAllBuckets(ed *eardetDtctr) {
-	for i := uint64(0); i < numCounters; i++ {
+	for i := uint32(0); i < numCounters; i++ {
 		fmt.Printf("%d: id=%d count=%d\n", i, ed.counters[i].flowID, ed.counters[i].count)
 	}
 }
 
-func BenchmarkProcessPktInsertBasic(b *testing.B) {
-	alpha_test := uint64(500)
-	beta_th_test := uint64(5000)
-	ed := NewEardetDtctr(alpha_test, beta_th_test, 0)
+func makeRandomInput(n int) [][2]uint32 {
+	rSlice := make([][2]uint32, n)
 	source := rand.NewSource(time.Now().UnixNano())
 	r := rand.New(source)
-	var randID uint64
-	var randSize int	
+	for i := 0; i < n; i++ {
+		rSlice[i][0] = uint32(r.Uint32()) << 32 + uint32(r.Uint32())
+		rSlice[i][1] = uint32(rand.Intn(5000))
+	}
+	return rSlice
+}
+
+// func TestMakeRandomInput(t *testing.T) {
+// 	fmt.Println(makeRandomInput(10))
+// }
+
+func BenchmarkProcessPktInsertBasic(b *testing.B) {
+	alpha_test := uint32(500)
+	beta_th_test := uint32(5000)
+	ed := NewEardetDtctr(alpha_test, beta_th_test, 0)
+	rSlice := makeRandomInput(b.N)
+	var randID uint32
+	var randSize uint32	
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		randID = uint64(r.Uint32()) << 32 + uint64(r.Uint32())
-		randSize = rand.Intn(500)
-		ed.processPkt(randID, uint64(randSize))	
+		randID = rSlice[i][0]
+		randSize = rSlice[i][1]
+		resGlob = ed.processPkt(randID, randSize)	
 	}
 }
 
 func BenchmarkDetectInsertBasic(b *testing.B) {
-	alpha_test := uint64(500)
-	beta_th_test := uint64(5000)
+	alpha_test := uint32(500)
+	beta_th_test := uint32(5000)
 	ed := NewEardetDtctr(alpha_test, beta_th_test, 0)
-	source := rand.NewSource(time.Now().UnixNano())
-	r := rand.New(source)
-	var randID uint64
-	var randSize int	
+	rSlice := makeRandomInput(b.N)
+	var randID uint32
+	var randSize uint32	
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		randID = uint64(r.Uint32()) << 32 + uint64(r.Uint32())
-		randSize = rand.Intn(500)
-		ed.Detect(randID, uint64(randSize), time.Now().Sub(zeroTime))	
+		randID = rSlice[i][0]
+		randSize = rSlice[i][1]
+		resGlob = ed.Detect(randID, randSize, time.Now().Sub(zeroTime))	
 	}
 }
 

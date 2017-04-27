@@ -16,58 +16,64 @@
 package eardet
 
 import (
+	// "fmt"
 	"time"
 )
 
+//TODO:
+//Take care of carry-over
+//Change the way we find the new minimum
+
 const (
-	//the number of counters in use (must be >1)
-	numCounters uint64 = 100
-	maxuint64 uint64 = 18446744073709551615
+	//the number of counters in use (must be > 1)
+	numCounters uint32 = 128
+	maxuint32 uint32 = 4294967295
 )
 
 type counter struct {
-	flowID uint64
-	//count is always <= beta_th + alpha
-	count uint64
+	flowID uint32
+	//count is always <= threshold + alpha
+	count uint32
 }
 
 type eardetDtctr struct {
 	//the link capacity in Byte/nanosec
-	linkCap float64
+	linkCap float32
 	//maximum packet size
-	alpha uint64
-	//counter threshold
-	beta_th uint64
+	alpha uint32
+	//counter threshold relative to zero
+	beta_th uint32
 
 	//bucktes
 	counters [numCounters]counter
 	//points to a bucket with count <= the counts of all other buckets
 	minCounter *counter
+	//the maximum value of count
+	maxValue uint32
+	//count == floor is regarded as being zero
+	floor uint32
+	//threshold for counters that is relative to floor
+	threshold uint32
 
-	//count with this value is regarded as being zero
-	floor uint64
-	//the maximum value floor is allowed to take without triggering resetFloor
-	maxFloor uint64
+	virtualID uint32
+	maxVirtualPacketSize uint32
 
-	virtualID uint64
-	maxVirtualPacketSize uint64
-
-	//nanoseconds passed since a start time
+	//nanoseconds passed since start of interval
 	currentTime time.Duration
 }
 
 //constructor
-func NewEardetDtctr(alpha uint64, beta_th uint64, linkCap float64) *eardetDtctr {
+func NewEardetDtctr(alpha uint32, beta_th uint32, linkCap float32) *eardetDtctr {
 	ed := &eardetDtctr{}
 
 	ed.alpha = alpha
 	ed.beta_th = beta_th
+	ed.threshold = beta_th
 	ed.linkCap = linkCap
 
-	//set minCounter to the first element of counters (all are initialized to 0 anyway)
-	ed.minCounter = &ed.counters[0]
-	//set maxFloor
-	ed.maxFloor = maxuint64 - ed.beta_th - ed.alpha
+	//set minCounter to the last element of counters (all are initialized to 0 anyway)
+	ed.minCounter = &ed.counters[127]
+	ed.maxValue = 0
 	//set maxVirtualPacketSize
 	ed.maxVirtualPacketSize = ed.beta_th - 1
 
@@ -75,47 +81,61 @@ func NewEardetDtctr(alpha uint64, beta_th uint64, linkCap float64) *eardetDtctr 
 }
 
 //check packet
-func (ed *eardetDtctr) Detect(flowID uint64, size uint64, t time.Duration) bool {
-	//advance currentTime
-	oldTime := ed.currentTime
-	ed.currentTime = t + time.Duration(float64(size)/ed.linkCap)
+func (ed *eardetDtctr) Detect(flowID uint32, size uint32, t time.Duration) bool {
 
-	//insert virtual traffic
-	virtualTrafficSize := uint64(float64(t - oldTime)*ed.linkCap) + 1
-	for virtualTrafficSize >= ed.maxVirtualPacketSize {
-		virtualTrafficSize -= ed.maxVirtualPacketSize
-		ed.processPkt(ed.virtualID, ed.maxVirtualPacketSize)
-		ed.virtualID++
-	}
-	if virtualTrafficSize > 0 {
-		ed.processPkt(ed.virtualID, virtualTrafficSize)
-		ed.virtualID++
+	if (ed.currentTime < t) {
+		//advance currentTime
+		oldTime := ed.currentTime
+		//TODO: deal with the carry
+		ed.currentTime = t + time.Duration(float32(size)/ed.linkCap)
+		
+		//calculate virtual traffic size
+		//TODO: deal with the carry
+		virtualTrafficSize := uint32(float32(t - oldTime)*ed.linkCap) + 1
+		if virtualTrafficSize > ed.maxValue * numCounters {
+			ed.floor = ed.maxValue
+			ed.threshold = ed.floor + ed.beta_th
+		}
+
+		//insert virtual traffic
+		for virtualTrafficSize >= ed.maxVirtualPacketSize {
+			virtualTrafficSize -= ed.maxVirtualPacketSize
+			ed.processPkt(ed.virtualID, ed.maxVirtualPacketSize)
+			ed.virtualID++
+		}
+		if virtualTrafficSize > 0 {
+			ed.processPkt(ed.virtualID, virtualTrafficSize)
+			ed.virtualID++
+		}
 	}
 
-	//add real packet
+	//insert packet
 	return ed.processPkt(flowID, size)
 }
 
 //add the packet to counters
 //Note: The assumption is no packet from an already blacklisted flow is passed as argument to this function.
-//If this assumption does not hold, a count might overflow.
-func (ed *eardetDtctr) processPkt(flowID uint64, size uint64) bool {
-	//get the flow id modulo numCounters
-	index := flowID % numCounters
+//If this assumption does not hold, a counter might overflow.
+func (ed *eardetDtctr) processPkt(flowID uint32, size uint32) bool {
+	//get the first bucket
+	index := (flowID & 0xFFFF) % numCounters
 	c := &ed.counters[index]
+
 	tries := 0
 	var e, old_c *counter = nil, nil
 
 	//check if one of the two candidate buckets already belongs to this flow
 	for tries < 2 {
-		//if yes, increment the count
+		//if yes, increment the counter of that bucket
 		if c.flowID == flowID {
 			c.count += size
 			if c == ed.minCounter {
 				ed.resetMin()
 			}
-			//check if the threshold is reached
-			if c.count > ed.beta_th {
+			if c.count > ed.maxValue {
+				ed.maxValue = c.count
+			}
+			if c.count > ed.threshold {
 				return true
 			}
 			return false
@@ -126,20 +146,49 @@ func (ed *eardetDtctr) processPkt(flowID uint64, size uint64) bool {
 		tries++
 		if tries == 1 {
 			old_c = c
-			c = &ed.counters[(index + 1) % numCounters] //TODO: Maybe change this
+			c = &ed.counters[((flowID & 0xFFFF0000) >> 16) % numCounters]
 		}
 	}
 
+	//check if it is possible to displace any of the counters blocking our
+	//two candidate buckets old_c and c
+	if e == nil {
+		s := &ed.counters[(old_c.flowID & 0xFFFF) % numCounters]
+		if s.count == ed.floor {
+			s.flowID = old_c.flowID
+			s.count = old_c.count
+			e = old_c
+		} else if s = &ed.counters[((old_c.flowID & 0xFFFF0000) >> 16) % numCounters]; s.count == ed.floor {
+			s.flowID = old_c.flowID
+			s.count = old_c.count
+			e = old_c
+		} else if s = &ed.counters[(c.flowID & 0xFFFF) % numCounters]; s.count == ed.floor {
+			s.flowID = c.flowID
+			s.count = c.count
+			e = c
+		} else if s = &ed.counters[((c.flowID & 0xFFFF0000) >> 16) % numCounters]; s.count == ed.floor {
+			s.flowID = c.flowID
+			s.count = c.count
+			e = c
+		}
+		if e != nil {
+			e.count = ed.floor
+			ed.minCounter = e
+		}
+	}
 
-	//check if we have found an empty bucket
+	//check if we have found a (now) empty bucket
 	if e != nil {
 		e.flowID = flowID
 		e.count = ed.floor + size
 		if e == ed.minCounter {
 			ed.resetMin()
 		}
+		if e.count > ed.maxValue {
+			ed.maxValue = e.count
+		}
 		//check if the threshold is reached
-		if e.count > ed.beta_th {
+		if e.count > ed.threshold {
 			return true
 		}
 		return false
@@ -147,23 +196,26 @@ func (ed *eardetDtctr) processPkt(flowID uint64, size uint64) bool {
 
 	//if we have not found any bucket, decrement the counts in all buckets
 	m := min(size, ed.minCounter.count - ed.floor)
-	if ed.maxFloor - ed.floor < m{
-		ed.resetFloor()
-	}
 	ed.floor += m
-	ed.beta_th += m //adjust threshold
+	ed.threshold += m //adjust threshold
 
 	//check again if bucket is zero, insert if yes
 	if old_c.count == ed.floor {
 		old_c.flowID = flowID
 		old_c.count = ed.floor + (size - m)
-		if old_c.count > ed.beta_th {
+		if old_c == ed.minCounter {
+			ed.resetMin()
+		}
+		if old_c.count > ed.threshold {
 			return true
 		}
 	} else if c.count == ed.floor {
 		c.flowID = flowID
 		c.count = ed.floor + (size - m)
-		if c.count > ed.beta_th {
+		if c == ed.minCounter {
+			ed.resetMin()
+		}
+		if c.count > ed.threshold {
 			return true
 		}
 	}
@@ -171,10 +223,11 @@ func (ed *eardetDtctr) processPkt(flowID uint64, size uint64) bool {
 }
 
 //calling this function will reset ed.minCounter
+//TODO: Change this
 func (ed *eardetDtctr) resetMin() {
 	c := &ed.counters[0]
 	m := c.count
-	for i := uint64(0); i < numCounters; i++ {
+	for i := uint32(0); i < numCounters; i++ {
 		if ed.counters[i].count < m {
 			c = &ed.counters[i]
 			m = ed.counters[i].count
@@ -185,14 +238,14 @@ func (ed *eardetDtctr) resetMin() {
 
 //resets the floor to zero
 func (ed *eardetDtctr) resetFloor() {
-	for i := uint64(0); i < numCounters; i++ {
+	for i := uint32(0); i < numCounters; i++ {
 		ed.counters[i].count -= ed.floor
 	}
-	ed.beta_th -= ed.floor
+	ed.threshold = ed.beta_th
 	ed.floor = 0
 }
 
-func min(a, b uint64) uint64 {
+func min(a, b uint32) uint32 {
 	if a < b {
 		return a
 	}
