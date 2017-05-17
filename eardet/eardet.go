@@ -72,12 +72,17 @@ func NewEardetDtctr(alpha uint32, beta_th uint32, linkCap float32) *eardetDtctr 
 	ed.linkCap = linkCap
 
 	//set minCounter to the last element of counters (all are initialized to 0 anyway)
-	ed.minCounter = &ed.counters[127]
+	ed.minCounter = &ed.counters[numCounters - 1]
 	ed.maxValue = 0
 	//set maxVirtualPacketSize
 	ed.maxVirtualPacketSize = ed.beta_th - 1
 
 	return ed
+}
+
+//if the first packets timestamp is not equal to zero, use this
+func (ed *eardetDtctr) SetCurrentTime(now time.Duration) {
+	ed.currentTime = now
 }
 
 //check packet

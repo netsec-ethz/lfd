@@ -1,0 +1,259 @@
+TestEARDetPerformanceAgainstBaseline
+
+	//parameters for
+	//TH_l(t) = gamma_l*t + beta_l
+	//TH_h(t) = gamma_h*t + beta_h
+	//beta_h = alpha + 2*beta_th
+	//gamma_h > p / (n + 1) = p / 129
+	//10Gbps = 1.25B/ns
+	//gamma = gamma_h
+
+$ go test -run=TestEARDetPerformanceAgainstBaseline
+Total number of packets: 23676763
+Total number of errors: 907539
+Number of TCP over IPv4 packets: 20737987
+Number of UDP over IPv4 packets: 2049353
+TestEARDetPerformanceAgainstBaseline:
+eardetDtctr: alpha=1000, beta_th=5000, p=1.250000B/ns
+baselineDtctr: beta=11000.000000, gamma=0.009690
+Seed for murmur3: 3516695457
+Number of flows: 797564
+Number of flows detected by baseline: 8411
+Number of flows detected by eardet: 4443
+FP (flows): 1728 FN (flows): 5696
+overuseDamage: 1261827334B, falsePositiveDamage: 2287224144B
+PASS
+ok  	github.com/hosslen/shadow_lfd/caida	86.714s
+
+$ go test -run=TestEARDetPerformanceAgainstBaseline
+Total number of packets: 23676763
+Total number of errors: 907539
+Number of TCP over IPv4 packets: 20737987
+Number of UDP over IPv4 packets: 2049353
+TestEARDetPerformanceAgainstBaseline:
+eardetDtctr: alpha=1000, beta_th=5000, p=1.250000B/ns
+baselineDtctr: beta=11000.000000, gamma=0.009690
+Seed for murmur3: 726340629
+Number of flows: 797562
+Number of flows detected by baseline: 8411
+Number of flows detected by eardet: 4544
+FP (flows): 1769 FN (flows): 5636
+overuseDamage: 1272503792B, falsePositiveDamage: 2286567296B
+PASS
+ok  	github.com/hosslen/shadow_lfd/caida	78.319s
+
+$ go test -run=TestEARDetPerformanceAgainstBaseline
+Total number of packets: 23676763
+Total number of errors: 907539
+Number of TCP over IPv4 packets: 20737987
+Number of UDP over IPv4 packets: 2049353
+TestEARDetPerformanceAgainstBaseline:
+eardetDtctr: alpha=1000, beta_th=5000, p=1.250000B/ns
+baselineDtctr: beta=11000.000000, gamma=0.009690
+Seed for murmur3: 3275360422
+Number of flows: 797567
+Number of flows detected by baseline: 8411
+Number of flows detected by eardet: 4480
+FP (flows): 1755 FN (flows): 5686
+overuseDamage: 1270521676B, falsePositiveDamage: 2280030036B
+PASS
+ok  	github.com/hosslen/shadow_lfd/caida	79.695s
+
+---------------------------------------------------------------------
+
+$ go test -run=TestForHashCollisions
+Total number of packets: 23676763
+Total number of errors: 907539
+Number of TCP over IPv4 packets: 20737987
+Number of UDP over IPv4 packets: 2049353
+3931063189: 2
+2570179305: 2
+2356749753: 2
+2053015377: 2
+1084519087: 2
+2804132652: 2
+2261781857: 2
+3814042302: 2
+492383260: 2
+746117316: 2
+2780344971: 2
+3558379189: 2
+3193874221: 2
+3882910166: 2
+3493912589: 2
+1328654665: 2
+2786083125: 2
+3563185507: 2
+4270849095: 2
+1690558623: 2
+4149395502: 2
+3143285965: 2
+3467029631: 2
+3133994051: 2
+3309232758: 2
+3679921535: 2
+1141457612: 2
+3699907366: 2
+541134644: 2
+2751426213: 2
+2266697295: 2
+294911417: 2
+2225471811: 2
+3683962413: 2
+3519782038: 2
+3565916312: 2
+2643372942: 2
+494607290: 2
+711578470: 2
+2110322726: 2
+3785062241: 2
+65647524: 2
+2984439736: 2
+1303012716: 2
+2713165098: 2
+686933906: 2
+1297868231: 2
+3706877077: 2
+413797969: 2
+3044297937: 2
+1089106359: 2
+3950581740: 2
+3475203659: 2
+2034241940: 2
+201819227: 2
+3889868005: 2
+62792805: 2
+2881185871: 2
+2375709953: 2
+1589199035: 2
+4196195847: 2
+40242339: 2
+78100906: 2
+4067446336: 2
+1072176121: 2
+2035978562: 2
+3161536424: 2
+519647866: 2
+Collisions: 68
+Seed for murmur3: 2108169037
+PASS
+ok  	github.com/hosslen/shadow_lfd/caida	74.523s
+
+------------------------------------------------------------------------------------------
+
+BenchmarkEARDetWithTraceMemoryLowBinary
+$ go test -run=NONE -bench=BenchmarkEARDetWithTraceMemoryLowBinary
+BenchmarkEARDetWithTraceMemoryLowBinary-4   	 5000000	       385 ns/op
+PASS
+ok  	github.com/hosslen/shadow_lfd/caida	392.436s
+
+BenchmarkBaselineWithTraceMemoryLowBinary
+$ go test -run=NONE -bench=BenchmarkBaselineWithTraceMemoryLowBinary
+???
+
+-------------------------------------------------------------------------------------------
+
+TestEARDetWithTraceMemoryLowBinary
+----------------------------------
+$ go test -run=TestEARDetWithTraceMemoryLowBinary
+Average time spend processing: 85.961357 ns.
+Longest processing time: 17162648 ns, shortest -549 ns
+PASS
+ok  	github.com/hosslen/shadow_lfd/caida	47.627s
+$ go test -run=TestEARDetWithTraceMemoryLowBinary
+Average time spend processing: 84.656761 ns.
+Longest processing time: 18035660 ns, shortest -328 ns
+PASS
+ok  	github.com/hosslen/shadow_lfd/caida	45.286s
+$ go test -run=TestEARDetWithTraceMemoryLowBinary
+Average time spend processing: 85.210917 ns.
+Longest processing time: 17695569 ns, shortest 0 ns
+PASS
+ok  	github.com/hosslen/shadow_lfd/caida	45.239s
+
+TestBaselinetWithTraceMemoryLowBinary
+-------------------------------------
+$ go test -run=TestBaselinetWithTraceMemoryLowBinary
+Average time spent processing a packet: 96.823160 ns.
+Longest processing time: 6122740 ns, shortest -645 ns
+PASS
+ok  	github.com/hosslen/shadow_lfd/caida	44.132s
+$ go test -run=TestBaselinetWithTraceMemoryLowBinary
+Average time spent processing a packet: 95.941693 ns.
+Longest processing time: 20108074 ns, shortest 0 ns
+PASS
+ok  	github.com/hosslen/shadow_lfd/caida	43.370s
+$ go test -run=TestBaselinetWithTraceMemoryLowBinary
+Average time spent processing a packet: 96.151150 ns.
+Longest processing time: 13129939 ns, shortest -439 ns
+PASS
+ok  	github.com/hosslen/shadow_lfd/caida	43.899s
+
+--------------------------------------------------------------------------------------------
+
+TestEARDetWithTraceMemoryLowDirect
+----------------------------------
+$ go test -run=TestEARDetWithTraceMemoryLowDirect
+Average time spend processing: 109.638673 ns.
+Longest processing time: 17562873 ns, shortest -619 ns
+PASS
+ok  	github.com/hosslen/shadow_lfd/caida	104.198s
+$ go test -run=TestEARDetWithTraceMemoryLowDirect
+Average time spend processing: 105.102719 ns.
+Longest processing time: 19654617 ns, shortest -245 ns
+PASS
+ok  	github.com/hosslen/shadow_lfd/caida	104.572s
+$ go test -run=TestEARDetWithTraceMemoryLowDirect
+Average time spend processing: 108.325694 ns.
+Longest processing time: 17715118 ns, shortest -112 ns
+PASS
+ok  	github.com/hosslen/shadow_lfd/caida	103.966s
+
+TestBaselineWithTraceMemoryLowDirect
+------------------------------------
+$ go test -run=TestBaselineWithTraceMemoryLowDirect
+Average time spend processing: 195.858784 ns.
+Longest processing time: 33215407 ns, shortest -650 ns
+PASS
+ok  	github.com/hosslen/shadow_lfd/caida	90.113s
+$ go test -run=TestBaselineWithTraceMemoryLowDirect
+Average time spend processing: 182.400769 ns.
+Longest processing time: 31112759 ns, shortest -908 ns
+PASS
+ok  	github.com/hosslen/shadow_lfd/caida	86.469s
+$ go test -run=TestBaselineWithTraceMemoryLowDirect
+Average time spend processing: 191.320327 ns.
+Longest processing time: 31904858 ns, shortest -862 ns
+PASS
+ok  	github.com/hosslen/shadow_lfd/caida	86.310s
+
+------------------------------------------------------------------------------------------------
+BenchmarkWithTraceLoaded
+------------------------
+$ go test -run=NONE -bench=BenchmarkWithTraceLoaded
+Total number of packets: 23676763
+Total number of errors: 907539
+Number of TCP over IPv4 packets: 20737987
+Number of UDP over IPv4 packets: 2049353
+BenchmarkWithTraceLoadedBaseline-4   	20000000	        90.1 ns/op
+BenchmarkWithTraceLoadedEARDet-4     	20000000	        57.0 ns/op
+PASS
+ok  	github.com/hosslen/shadow_lfd/caida	76.898s
+$ go test -run=NONE -bench=BenchmarkWithTraceLoaded
+Total number of packets: 23676763
+Total number of errors: 907539
+Number of TCP over IPv4 packets: 20737987
+Number of UDP over IPv4 packets: 2049353
+BenchmarkWithTraceLoadedBaseline-4   	20000000	        91.5 ns/op
+BenchmarkWithTraceLoadedEARDet-4     	Warning: Not enough packets in the trace, benchmark might be inaccurate!30000000	        54.3 ns/op
+PASS
+ok  	github.com/hosslen/shadow_lfd/caida	76.355s
+$ go test -run=NONE -bench=BenchmarkWithTraceLoaded
+Total number of packets: 23676763
+Total number of errors: 907539
+Number of TCP over IPv4 packets: 20737987
+Number of UDP over IPv4 packets: 2049353
+BenchmarkWithTraceLoadedBaseline-4   	20000000	        91.9 ns/op
+BenchmarkWithTraceLoadedEARDet-4     	Warning: Not enough packets in the trace, benchmark might be inaccurate!30000000	        53.8 ns/op
+PASS
+ok  	github.com/hosslen/shadow_lfd/caida	76.494s

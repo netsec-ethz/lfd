@@ -1,0 +1,4 @@
+BenchmarkProcessPktInsertBasic-4   	50000000	        27.0 ns/op
+BenchmarkDetectInsertBasic-4       	30000000	        58.8 ns/op
+PASS
+ok  	github.com/hosslen/shadow_lfd/eardet	7.553s

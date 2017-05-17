@@ -25,6 +25,10 @@ func setSeed(s uint32) {
 	seed = s
 }
 
+func GetSeed() uint32 {
+	return seed
+}
+
 //based on pseudo code from https://en.wikipedia.org/wiki/MurmurHash
 func Murmur3_32(key *[8]byte) uint32 {
 	arrayPointer := (*[2]uint32)(unsafe.Pointer(key))
@@ -58,11 +62,11 @@ func Murmur3_32(key *[8]byte) uint32 {
 }
 
 //for the caida packet traces
-func Murmur3_32_caida(key *[12]byte) uint32 {
-	arrayPointer := (*[3]uint32)(unsafe.Pointer(key))
+func Murmur3_32_caida(key *[16]byte) uint32 {
+	arrayPointer := (*[4]uint32)(unsafe.Pointer(key))
 	hash := seed
 	var k uint32
-	for i := 0; i < 3; i++ {
+	for i := 0; i < 4; i++ {
 		k = (*arrayPointer)[i]
 
 		k *= 0xcc9e2d51

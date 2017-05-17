@@ -463,8 +463,8 @@ func makeRandomInput(n int) [][2]uint32 {
 	source := rand.NewSource(time.Now().UnixNano())
 	r := rand.New(source)
 	for i := 0; i < n; i++ {
-		rSlice[i][0] = uint32(r.Uint32()) << 32 + uint32(r.Uint32())
-		rSlice[i][1] = uint32(rand.Intn(5000))
+		rSlice[i][0] = r.Uint32()
+		rSlice[i][1] = uint32(rand.Intn(1000))
 	}
 	return rSlice
 }
@@ -494,12 +494,15 @@ func BenchmarkDetectInsertBasic(b *testing.B) {
 	ed := NewEardetDtctr(alpha_test, beta_th_test, 0)
 	rSlice := makeRandomInput(b.N)
 	var randID uint32
-	var randSize uint32	
+	var randSize uint32
+	var now time.Duration	
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		randID = rSlice[i][0]
 		randSize = rSlice[i][1]
-		resGlob = ed.Detect(randID, randSize, time.Now().Sub(zeroTime))	
+		//fmt.Printf("%d %d %d\n", randID, randSize, now)
+		resGlob = ed.Detect(randID, randSize, now)
+		now += 2	
 	}
 }
 

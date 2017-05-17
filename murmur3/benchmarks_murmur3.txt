@@ -1,0 +1,5 @@
+BenchmarkZhangMurmur-4       	100000000	        10.1 ns/op
+BenchmarkSpaolacciMurmur-4   	100000000	        10.0 ns/op
+BenchmarkMyMurmur-4          	200000000	         7.57 ns/op
+PASS
+ok  	github.com/hosslen/shadow_lfd/murmur3	17.152s
