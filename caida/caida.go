@@ -72,6 +72,7 @@ func loopOverPCAPFile(pcapFilename string, myHandler packetHandler) {
 		}
 		packetSource := gopacket.NewPacketSource(handle, decoder)
 		for packet := range packetSource.Packets() {
+            if packetCounter >= len(packets) {break}
 			myHandler(packet)
 		}
 	}

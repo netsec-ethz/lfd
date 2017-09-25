@@ -44,6 +44,9 @@ func TestDoNothing(t *testing.T) {
 //parses the trace file specified in caida.go and writes the caidaPkts to a binary file
 func TestWriteParsedTraceToBinary(t *testing.T) {
 	writeParsedTraceToBinary()
+    if !packetsInitialized {
+        resetCounters()
+    }
 }
 
 //measure detection performance of the EARDet detector against the baseline detector
@@ -66,8 +69,10 @@ func TestEARDetPerformanceAgainstBaseline(t *testing.T) {
 
 	//initialize packets
 	if !packetsInitialized {
+        fmt.Println("bp1")
 		loadPCAPFile()	
 	}
+    fmt.Println(packets)
 
 	var flowID uint32
 	var pkt *caidaPkt
