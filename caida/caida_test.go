@@ -29,11 +29,11 @@ var (
 	//beta_h = alpha + 2*beta_th
 	//gamma_h > p / (n + 1) = p / 129
 	p = float32(1.25) //10Gbps = 1.25B/ns
-	alpha = uint32(1000)
+	alpha = uint32(1504)
 	beta_th = uint32(5000)
 	beta = float64(alpha + 2*beta_th)
 	gamma = float64(p / 129.0)
-	t_l = time.Duration(50)
+	t_l = time.Duration(beta/gamma)
 )
 
 //to test if it compiles ...
@@ -146,7 +146,7 @@ func TestRLFDPerformanceAgainstBaseline(t *testing.T) {
 	blackListBD := make(map[uint32]int)
 
 	//initialize detectors
-	rd := rlfd.NewRlfdDtctr(uint32(beta), uint32(gamma), 1000)
+	rd := rlfd.NewRlfdDtctr(uint32(beta), uint32(gamma), t_l)
 	bd := baseline.NewBaselineDtctr(beta, gamma)
 
 	//initialize packets
