@@ -34,6 +34,12 @@ var (
 	beta = float64(alpha + 2*beta_th)
 	gamma = float64(p / 129.0)
 	t_l = time.Duration(beta/gamma)
+
+    // trace for testing
+    trace *TraceData
+    pcapFilename = "../resource/equinix-sanjose.dirA.20120119-125903.UTC.anon.10K_pkts.pcap"
+    maxNumPkts = 1000
+    pktNumInBinary int     // number of packets written into the binary file
 )
 
 //to test if it compiles ...
@@ -43,10 +49,10 @@ func TestDoNothing(t *testing.T) {
 
 //parses the trace file specified in caida.go and writes the caidaPkts to a binary file
 func TestWriteParsedTraceToBinary(t *testing.T) {
-	writeParsedTraceToBinary()
-    if !packetsInitialized {
-        resetCounters()
-    }
+    // This test is required to run at very beginning to ensure
+    // the binary file has been generated
+    // write binary file in temp.dat
+    pktNumInBinary = writeParsedTraceToBinary(pcapFilename)
 }
 
 //measure detection performance of the EARDet detector against the baseline detector
@@ -68,19 +74,17 @@ func TestEARDetPerformanceAgainstBaseline(t *testing.T) {
 	bd := baseline.NewBaselineDtctr(beta, gamma)
 
 	//initialize packets
-	if !packetsInitialized {
-        fmt.Println("bp1")
-		loadPCAPFile()	
-	}
-    fmt.Println(packets)
+    if trace != nil {
+        trace = loadPCAPFile(pcapFilename, maxNumPkts)
+    }
 
 	var flowID uint32
 	var pkt *caidaPkt
 	murmur3.ResetSeed()
-	ed.SetCurrentTime(packets[0].Duration)
+	ed.SetCurrentTime(trace.packets[0].Duration)
 	var resED, resBD bool
-	for i := 0; i < len(packets); i++ {
-		pkt = packets[i]
+	for i := 0; i < len(trace.packets); i++ {
+		pkt = trace.packets[i]
 		flowID = murmur3.Murmur3_32_caida(&pkt.Id)
 		if _, ok := blackListED[flowID]; !ok {
 			resED = ed.Detect(flowID, pkt.Size, pkt.Duration)
@@ -150,17 +154,17 @@ func TestRLFDPerformanceAgainstBaseline(t *testing.T) {
 	bd := baseline.NewBaselineDtctr(beta, gamma)
 
 	//initialize packets
-	if !packetsInitialized {
-		loadPCAPFile()	
-	}
+    if trace != nil {
+        trace = loadPCAPFile(pcapFilename, maxNumPkts)
+    }
 
 	var flowID uint32
 	var pkt *caidaPkt
 	murmur3.ResetSeed()
-	rd.SetCurrentTime(packets[0].Duration)
+	rd.SetCurrentTime(trace.packets[0].Duration)
 	var resRD, resBD bool
-	for i := 0; i < len(packets); i++ {
-		pkt = packets[i]
+	for i := 0; i < len(trace.packets); i++ {
+		pkt = trace.packets[i]
 		flowID = murmur3.Murmur3_32_caida(&pkt.Id)
 		if _, ok := blackListRD[flowID]; !ok {
 			resRD = rd.Detect(flowID, pkt.Size, pkt.Duration)
@@ -230,16 +234,16 @@ func TestCLEFPerformanceAgainstBaseline(t *testing.T) {
 	bd := baseline.NewBaselineDtctr(beta, gamma)
 
 	//initialize packets
-	if !packetsInitialized {
-		loadPCAPFile()	
-	}
+    if trace != nil {
+        trace = loadPCAPFile(pcapFilename, maxNumPkts)
+    }
 
 	var pkt *caidaPkt
 	var flowID complex128
-	cd.SetCurrentTime(packets[0].Duration)
+	cd.SetCurrentTime(trace.packets[0].Duration)
 	var resCD, resBD bool
-	for i := 0; i < len(packets); i++ {
-		pkt = packets[i]
+	for i := 0; i < len(trace.packets); i++ {
+		pkt = trace.packets[i]
 		flowID = *((*complex128) (unsafe.Pointer(&pkt.Id)))
 		if _, ok := blackListRD[flowID]; !ok {
 			resCD = cd.Detect(&pkt.Id, pkt.Size, pkt.Duration)
@@ -294,17 +298,18 @@ func TestCLEFPerformanceAgainstBaseline(t *testing.T) {
 //count the hash collisions
 func TestForHashCollisions(t *testing.T) {
 	//initialize packets
-	if !packetsInitialized {
-		loadPCAPFile()	
-	}
+    if trace != nil {
+        trace = loadPCAPFile(pcapFilename, maxNumPkts)
+    }
+
 	myMap := make(map[uint32]([]string))
 
 	var flowID uint32
 	var bucket []string
 	var pkt *caidaPkt
 	murmur3.ResetSeed()
-	for i := 0; i < len(packets); i++ {
-		pkt = packets[i]
+	for i := 0; i < len(trace.packets); i++ {
+		pkt = trace.packets[i]
 		flowID = murmur3.Murmur3_32_caida(&pkt.Id)
 		bucket = myMap[flowID]
 		if bucket == nil {
@@ -427,13 +432,15 @@ func TestEARDetWithTraceMemoryLowBinary(t *testing.T) {
 	murmur3.ResetSeed()
 
 	//open file
+    // TODO: this test depends one the TestWriteParsedTraceToBinary
+    // which is not good.
 	f, err := os.Open("temp.dat")
 	if err != nil {
 		fmt.Println("os.Open failed:", err)
 	}
 	defer f.Close()
 
-	for i := 0; i < numPkts; i++ {
+	for i := 0; i < pktNumInBinary; i++ {
 		err = binary.Read(f, binary.LittleEndian, pkt)
 		if err != nil {
 			fmt.Println("binary.Read failed:", err)
@@ -460,12 +467,13 @@ func TestEARDetWithTraceMemoryLowBinary(t *testing.T) {
 			min = temp
 		}
 	}
-	fmt.Printf("Average time spend processing: %f ns.\n", float64(totalProcTime)/float64(numPkts))
+	fmt.Printf("Average time spend processing: %f ns.\n",
+        float64(totalProcTime)/float64(pktNumInBinary))
 	fmt.Printf("Longest processing time: %d ns, shortest %d ns\n", max, min)
 }
 
 func TestBaselinetWithTraceMemoryLowBinary(t *testing.T) {
-	var totalProcTime time.Duration
+    var totalProcTime time.Duration
 	var tic time.Time
 	//10Gbps = 1.25B/ns
 	detector := baseline.NewBaselineDtctr(beta, gamma)
@@ -483,7 +491,7 @@ func TestBaselinetWithTraceMemoryLowBinary(t *testing.T) {
 	}
 	defer f.Close()
 
-	for i := 0; i < numPkts; i++ {
+	for i := 0; i < pktNumInBinary; i++ {
 		err = binary.Read(f, binary.LittleEndian, pkt)
 		if err != nil {
 			fmt.Println("binary.Read failed:", err)
@@ -506,7 +514,7 @@ func TestBaselinetWithTraceMemoryLowBinary(t *testing.T) {
 			min = temp
 		}
 	}
-	fmt.Printf("Average time spent processing a packet: %f ns.\n", float64(totalProcTime)/float64(numPkts))
+	fmt.Printf("Average time spent processing a packet: %f ns.\n", float64(totalProcTime)/float64(pktNumInBinary))
 	fmt.Printf("Longest processing time: %d ns, shortest %d ns\n", max, min)
 }
 
@@ -529,8 +537,8 @@ func TestEARDetWithTraceMemoryLowDirect(t *testing.T) {
 	murmur3.ResetSeed()
 
 	//test
-	loopOverPCAPFile(filename, func(packet gopacket.Packet) {
-			pkt = convertToCaidaPkt(packet)
+	loopOverPCAPFile(pcapFilename, func(packet gopacket.Packet) bool {
+			pkt = convertToCaidaPkt(&TraceData{}, packet)
 			if !set {
 				detector.SetCurrentTime(pkt.Duration)
 				set = true
@@ -545,9 +553,10 @@ func TestEARDetWithTraceMemoryLowDirect(t *testing.T) {
 			} else if temp < min {
 				min = temp
 			}
+            return true
 		})
 
-	fmt.Printf("Average time spend processing: %f ns.\n", float64(totalProcTime)/float64(numPkts))
+	fmt.Printf("Average time spend processing: %f ns.\n", float64(totalProcTime)/float64(pktNumInBinary))
 	fmt.Printf("Longest processing time: %d ns, shortest %d ns\n", max, min)
 }
 
@@ -562,7 +571,7 @@ func TestBaselineWithTraceMemoryLowDirect(t *testing.T) {
 	var max time.Duration = 0
 	var min time.Duration = 9223372036854775807
 	murmur3.ResetSeed()
-	if handle, err := pcap.OpenOffline(filename); err != nil {
+	if handle, err := pcap.OpenOffline(pcapFilename); err != nil {
 		panic(err)
 	} else {
 		var decoder gopacket.Decoder
@@ -573,7 +582,7 @@ func TestBaselineWithTraceMemoryLowDirect(t *testing.T) {
 		}
 		packetSource := gopacket.NewPacketSource(handle, decoder)
 		for packet := range packetSource.Packets() {
-			pkt = convertToCaidaPkt(packet)
+			pkt = convertToCaidaPkt(&TraceData{}, packet)
 			flowID = murmur3.Murmur3_32_caida(&pkt.Id)
 			tic = time.Now()
 			res = detector.Detect(flowID, pkt.Size, pkt.Duration)
@@ -586,7 +595,7 @@ func TestBaselineWithTraceMemoryLowDirect(t *testing.T) {
 			}
 		}
 	}
-	fmt.Printf("Average time spend processing: %f ns.\n", float64(totalProcTime)/float64(numPkts))
+	fmt.Printf("Average time spend processing: %f ns.\n", float64(totalProcTime)/float64(pktNumInBinary))
 	fmt.Printf("Longest processing time: %d ns, shortest %d ns\n", max, min)
 }
 
@@ -596,21 +605,21 @@ func TestBaselineWithTraceMemoryLowDirect(t *testing.T) {
 
 func BenchmarkWithTraceLoadedBaseline(b *testing.B) {
 	//initialize packets
-	if !packetsInitialized {
-		loadPCAPFile()	
-	}
-	//10Gbps = 1.25B/ns
+	if trace != nil {
+        trace = loadPCAPFile(pcapFilename, maxNumPkts)
+    }
+    //10Gbps = 1.25B/ns
 	detector := baseline.NewBaselineDtctr(beta, gamma)
 	var flowID uint32
 	var pkt *caidaPkt
 	murmur3.ResetSeed()
-	if (numPkts < b.N) {
+	if (maxNumPkts < b.N) {
 		fmt.Printf("Warning: Not enough packets in the trace, benchmark might be inaccurate!")
 	}
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		pkt = packets[i % numPkts]
+		pkt = trace.packets[i % maxNumPkts]
 		flowID = murmur3.Murmur3_32_caida(&pkt.Id)
 		res = detector.Detect(flowID, pkt.Size, pkt.Duration)
 	}
@@ -618,22 +627,22 @@ func BenchmarkWithTraceLoadedBaseline(b *testing.B) {
 
 func BenchmarkWithTraceLoadedEARDet(b *testing.B) {
 	//initialize packets
-	if !packetsInitialized {
-		loadPCAPFile()	
-	}
-	//10Gbps = 1.25B/ns
+	if trace != nil {
+        trace = loadPCAPFile(pcapFilename, maxNumPkts)
+    }
+    //10Gbps = 1.25B/ns
 	detector := eardet.NewEardetDtctr(alpha, beta_th, p)
 	var flowID uint32
 	var pkt *caidaPkt
 	murmur3.ResetSeed()
-	detector.SetCurrentTime(packets[0].Duration)
-	if (numPkts < b.N) {
+	detector.SetCurrentTime(trace.packets[0].Duration)
+	if (maxNumPkts < b.N) {
 		fmt.Printf("Warning: Not enough packets in the trace, benchmark might be inaccurate!")
 	}
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		pkt = packets[i % numPkts]
+		pkt = trace.packets[i % maxNumPkts]
 		flowID = murmur3.Murmur3_32_caida(&pkt.Id)
 		res = detector.Detect(flowID, pkt.Size, pkt.Duration)
 	}
@@ -641,21 +650,21 @@ func BenchmarkWithTraceLoadedEARDet(b *testing.B) {
 
 func BenchmarkWithTraceLoadedRlfd(b *testing.B) {
 	//initialize packets
-	if !packetsInitialized {
-		loadPCAPFile()	
-	}
+	if trace != nil {
+        trace = loadPCAPFile(pcapFilename, maxNumPkts)
+    }
 	detector := rlfd.NewRlfdDtctr(uint32(beta), uint32(gamma), 100)
 	var flowID uint32
 	var pkt *caidaPkt
 	murmur3.ResetSeed()
-	detector.SetCurrentTime(packets[0].Duration)
-	if (numPkts < b.N) {
+	detector.SetCurrentTime(trace.packets[0].Duration)
+	if (maxNumPkts < b.N) {
 		fmt.Printf("Warning: Not enough packets in the trace, benchmark might be inaccurate!")
 	}
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		pkt = packets[i % numPkts]
+		pkt = trace.packets[i % maxNumPkts]
 		flowID = murmur3.Murmur3_32_caida(&pkt.Id)
 		res = detector.Detect(flowID, pkt.Size, pkt.Duration)
 	}
