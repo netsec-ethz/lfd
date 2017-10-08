@@ -37,7 +37,7 @@ var (
 
     // trace for testing
     trace *TraceData
-    pcapFilename = "../resource/equinix-sanjose.dirA.20120119-125903.UTC.anon.10K_pkts.pcap"
+    pcapFilename = "../resource/10K-test-pkts"
     maxNumPkts = 1000
     pktNumInBinary int     // number of packets written into the binary file
 )
