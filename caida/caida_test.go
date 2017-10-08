@@ -74,7 +74,7 @@ func TestEARDetPerformanceAgainstBaseline(t *testing.T) {
 	bd := baseline.NewBaselineDtctr(beta, gamma)
 
 	//initialize packets
-    if trace != nil {
+    if trace == nil {
         trace = loadPCAPFile(pcapFilename, maxNumPkts)
     }
 
@@ -154,7 +154,7 @@ func TestRLFDPerformanceAgainstBaseline(t *testing.T) {
 	bd := baseline.NewBaselineDtctr(beta, gamma)
 
 	//initialize packets
-    if trace != nil {
+    if trace == nil {
         trace = loadPCAPFile(pcapFilename, maxNumPkts)
     }
 
@@ -234,7 +234,7 @@ func TestCLEFPerformanceAgainstBaseline(t *testing.T) {
 	bd := baseline.NewBaselineDtctr(beta, gamma)
 
 	//initialize packets
-    if trace != nil {
+    if trace == nil {
         trace = loadPCAPFile(pcapFilename, maxNumPkts)
     }
 
@@ -298,7 +298,7 @@ func TestCLEFPerformanceAgainstBaseline(t *testing.T) {
 //count the hash collisions
 func TestForHashCollisions(t *testing.T) {
 	//initialize packets
-    if trace != nil {
+    if trace == nil {
         trace = loadPCAPFile(pcapFilename, maxNumPkts)
     }
 
@@ -605,7 +605,7 @@ func TestBaselineWithTraceMemoryLowDirect(t *testing.T) {
 
 func BenchmarkWithTraceLoadedBaseline(b *testing.B) {
 	//initialize packets
-	if trace != nil {
+	if trace == nil {
         trace = loadPCAPFile(pcapFilename, maxNumPkts)
     }
     //10Gbps = 1.25B/ns
@@ -627,7 +627,7 @@ func BenchmarkWithTraceLoadedBaseline(b *testing.B) {
 
 func BenchmarkWithTraceLoadedEARDet(b *testing.B) {
 	//initialize packets
-	if trace != nil {
+	if trace == nil {
         trace = loadPCAPFile(pcapFilename, maxNumPkts)
     }
     //10Gbps = 1.25B/ns
@@ -650,7 +650,7 @@ func BenchmarkWithTraceLoadedEARDet(b *testing.B) {
 
 func BenchmarkWithTraceLoadedRlfd(b *testing.B) {
 	//initialize packets
-	if trace != nil {
+	if trace == nil {
         trace = loadPCAPFile(pcapFilename, maxNumPkts)
     }
 	detector := rlfd.NewRlfdDtctr(uint32(beta), uint32(gamma), 100)
