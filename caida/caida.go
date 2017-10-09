@@ -201,7 +201,7 @@ func test() {
 	var totalProcTime time.Duration
 	var tic time.Time
 	//10Gbps = 1.25B/ns
-	detector := eardet.NewEardetDtctr(500, 1000, 1.25)
+	detector := eardet.NewEardetDtctr(128, 500, 1000, 1.25)
 	var flowID uint32
 	pkt := &caidaPkt{}
 	var set bool
