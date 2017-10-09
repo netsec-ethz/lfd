@@ -44,7 +44,7 @@ var (
 
     // trace for testing
     trace *TraceData
-    pcapFilename = "../resource/10K-test-pkts"
+    pcapFilename = "../resource/equinix-chicago.dirA.20160406-125912.UTC.anon.pcap"
     maxNumPkts = 10000
     pktNumInBinary int     // number of packets written into the binary file
 )
@@ -160,7 +160,7 @@ func TestRLFDPerformanceAgainstBaseline(t *testing.T) {
 	blackListBD := make(map[uint32]int)
 
 	//initialize detectors
-	rd := rlfd.NewRlfdDtctr(uint32(beta), uint32(gamma), t_l)
+	rd := rlfd.NewRlfdDtctr(uint32(beta), gamma, t_l)
 	bd := baseline.NewBaselineDtctr(beta, gamma)
 
 	//initialize packets
@@ -683,7 +683,7 @@ func BenchmarkWithTraceLoadedRlfd(b *testing.B) {
 	if trace == nil {
         trace = loadPCAPFile(pcapFilename, maxNumPkts)
     }
-	detector := rlfd.NewRlfdDtctr(uint32(beta), uint32(gamma), 100)
+	detector := rlfd.NewRlfdDtctr(uint32(beta), gamma, 100)
 	var flowID uint32
 	var pkt *caidaPkt
 	murmur3.ResetSeed()

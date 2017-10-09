@@ -29,7 +29,7 @@ type ClefDtctr struct {
 	resultsRlfd2 chan bool
 }
 
-func NewClefDtctr(linkCap float64, alpha, beta_th, beta, gamma uint32, t_l time.Duration) *ClefDtctr {
+func NewClefDtctr(linkCap float64, alpha, beta_th, beta uint32, gamma, t_l time.Duration) *ClefDtctr {
 	cd := &ClefDtctr{}
 
 	//set detectors
