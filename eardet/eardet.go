@@ -26,7 +26,7 @@ import (
 
 const (
 	//the number of counters in use (must be > 1)
-	numCounters uint32 = 128
+	// numCounters uint32 = 128
 	maxuint32 uint32 = 4294967295
 )
 
@@ -38,14 +38,19 @@ type counter struct {
 
 type EardetDtctr struct {
 	//the link capacity in Byte/nanosec
-	linkCap float32
+	linkCap float64
 	//maximum packet size
 	alpha uint32
 	//counter threshold relative to zero
 	beta_th uint32
 
+	beta_l uint32
+	gamma_l float64
+	beta_h uint32
+	gamma_h float64
+
 	//bucktes
-	counters [numCounters]counter
+	counters []counter
 	//points to a bucket with count <= the counts of all other buckets
 	minCounter *counter
 	//the maximum value of count
@@ -54,6 +59,8 @@ type EardetDtctr struct {
 	floor uint32
 	//threshold for counters that is relative to floor
 	threshold uint32
+	//num counters in EARDet
+	numCounters uint32
 
 	virtualID uint32
 	maxVirtualPacketSize uint32
@@ -62,14 +69,20 @@ type EardetDtctr struct {
 	currentTime time.Duration
 }
 
-//constructor
-func NewEardetDtctr(alpha uint32, beta_th uint32, linkCap float32) *EardetDtctr {
+//constructors
+// Deprecate this constructor: because this constructor
+// does not translate flow spec to detector setting
+func NewEardetDtctr(
+	numCounters uint32, alpha uint32, beta_th uint32,
+	linkCap float64) *EardetDtctr {
 	ed := &EardetDtctr{}
+    ed.counters = make([]counter, numCounters)
 
 	ed.alpha = alpha
 	ed.beta_th = beta_th
 	ed.threshold = beta_th
 	ed.linkCap = linkCap
+	ed.numCounters = numCounters
 
 	//set minCounter to the last element of counters (all are initialized to 0 anyway)
 	ed.minCounter = &ed.counters[numCounters - 1]
@@ -78,6 +91,62 @@ func NewEardetDtctr(alpha uint32, beta_th uint32, linkCap float32) *EardetDtctr 
 	ed.maxVirtualPacketSize = ed.beta_th - 1
 
 	return ed
+}
+
+// beta_th = ((beta_l + (gamma_l * (alpha + beta_l)) / (linkCapacity / (numOfCounters + 1) - gamma_l)) + 1;
+// beta_h = 2 * beta_th + alpha;
+func NewConfigedEardetDtctr(numCounters uint32, alpha uint32, beta_l uint32,
+	gamma_l float64, linkCap float64) *EardetDtctr{
+	ed := &EardetDtctr{}
+    ed.counters = make([]counter, numCounters)
+
+	ed.alpha = alpha
+	gamma_h := linkCap / float64(numCounters + 1)
+	ed.beta_th = uint32(float64(beta_l) + 
+		(gamma_l * float64(alpha + beta_l) / gamma_h - gamma_l) + 1.0)
+	ed.threshold = ed.beta_th
+	ed.linkCap = linkCap
+	ed.numCounters = numCounters
+	ed.beta_l = beta_l
+	ed.gamma_l = gamma_l
+	ed.beta_h = 2 * ed.beta_th + alpha
+	ed.gamma_h = gamma_h
+
+	//set minCounter to the last element of counters (all are initialized to 0 anyway)
+	ed.minCounter = &ed.counters[numCounters - 1]
+	ed.maxValue = 0
+	//set maxVirtualPacketSize
+	ed.maxVirtualPacketSize = ed.beta_th - 1
+
+	return ed
+}
+
+func (ed *EardetDtctr) GetAlpha() uint32 {
+	return ed.alpha
+}
+
+func (ed *EardetDtctr) GetBeta_th() uint32 {
+	return ed.beta_th
+}
+
+func (ed *EardetDtctr) GetBeta_l() uint32 {
+	return ed.beta_l
+}
+
+func (ed *EardetDtctr) GetGamma_l() float64 {
+	return ed.gamma_l
+}
+
+func (ed *EardetDtctr) GetBeta_h() uint32 {
+	return ed.beta_h
+}
+
+func (ed *EardetDtctr) GetGamma_h() float64 {
+	return ed.gamma_h
+}
+
+func (ed *EardetDtctr) GetNumCounters() uint32 {
+	return ed.numCounters
 }
 
 //if the first packets timestamp is not equal to zero, use this
@@ -92,12 +161,12 @@ func (ed *EardetDtctr) Detect(flowID uint32, size uint32, t time.Duration) bool 
 		//advance currentTime
 		oldTime := ed.currentTime
 		//TODO: deal with the carry
-		ed.currentTime = t + time.Duration(float32(size)/ed.linkCap)
+		ed.currentTime = t + time.Duration(float64(size)/ed.linkCap)
 		
 		//calculate virtual traffic size
 		//TODO: deal with the carry
-		virtualTrafficSize := uint32(float32(t - oldTime)*ed.linkCap) + 1
-		if virtualTrafficSize > ed.maxValue * numCounters {
+		virtualTrafficSize := uint32(float64(t - oldTime)*ed.linkCap) + 1
+		if virtualTrafficSize > ed.maxValue * ed.numCounters {
 			ed.floor = ed.maxValue
 			ed.threshold = ed.floor + ed.beta_th
 		}
@@ -123,7 +192,7 @@ func (ed *EardetDtctr) Detect(flowID uint32, size uint32, t time.Duration) bool 
 //If this assumption does not hold, a counter might overflow.
 func (ed *EardetDtctr) processPkt(flowID uint32, size uint32) bool {
 	//get the first bucket
-	index := (flowID & 0xFFFF) % numCounters
+	index := (flowID & 0xFFFF) % ed.numCounters
 	c := &ed.counters[index]
 
 	tries := 0
@@ -151,27 +220,27 @@ func (ed *EardetDtctr) processPkt(flowID uint32, size uint32) bool {
 		tries++
 		if tries == 1 {
 			old_c = c
-			c = &ed.counters[((flowID & 0xFFFF0000) >> 16) % numCounters]
+			c = &ed.counters[((flowID & 0xFFFF0000) >> 16) % ed.numCounters]
 		}
 	}
 
 	//check if it is possible to displace any of the counters blocking our
 	//two candidate buckets old_c and c
 	if e == nil {
-		s := &ed.counters[(old_c.flowID & 0xFFFF) % numCounters]
+		s := &ed.counters[(old_c.flowID & 0xFFFF) % ed.numCounters]
 		if s.count == ed.floor {
 			s.flowID = old_c.flowID
 			s.count = old_c.count
 			e = old_c
-		} else if s = &ed.counters[((old_c.flowID & 0xFFFF0000) >> 16) % numCounters]; s.count == ed.floor {
+		} else if s = &ed.counters[((old_c.flowID & 0xFFFF0000) >> 16) % ed.numCounters]; s.count == ed.floor {
 			s.flowID = old_c.flowID
 			s.count = old_c.count
 			e = old_c
-		} else if s = &ed.counters[(c.flowID & 0xFFFF) % numCounters]; s.count == ed.floor {
+		} else if s = &ed.counters[(c.flowID & 0xFFFF) % ed.numCounters]; s.count == ed.floor {
 			s.flowID = c.flowID
 			s.count = c.count
 			e = c
-		} else if s = &ed.counters[((c.flowID & 0xFFFF0000) >> 16) % numCounters]; s.count == ed.floor {
+		} else if s = &ed.counters[((c.flowID & 0xFFFF0000) >> 16) % ed.numCounters]; s.count == ed.floor {
 			s.flowID = c.flowID
 			s.count = c.count
 			e = c
@@ -232,7 +301,7 @@ func (ed *EardetDtctr) processPkt(flowID uint32, size uint32) bool {
 func (ed *EardetDtctr) resetMin() {
 	c := &ed.counters[0]
 	m := c.count
-	for i := uint32(0); i < numCounters; i++ {
+	for i := uint32(0); i < ed.numCounters; i++ {
 		if ed.counters[i].count < m {
 			c = &ed.counters[i]
 			m = ed.counters[i].count
@@ -243,7 +312,7 @@ func (ed *EardetDtctr) resetMin() {
 
 //resets the floor to zero
 func (ed *EardetDtctr) resetFloor() {
-	for i := uint32(0); i < numCounters; i++ {
+	for i := uint32(0); i < ed.numCounters; i++ {
 		ed.counters[i].count -= ed.floor
 	}
 	ed.threshold = ed.beta_th

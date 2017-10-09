@@ -29,11 +29,11 @@ type ClefDtctr struct {
 	resultsRlfd2 chan bool
 }
 
-func NewClefDtctr(linkCap float32, alpha, beta_th, beta, gamma uint32, t_l time.Duration) *ClefDtctr {
+func NewClefDtctr(linkCap float64, alpha, beta_th, beta, gamma uint32, t_l time.Duration) *ClefDtctr {
 	cd := &ClefDtctr{}
 
 	//set detectors
-	cd.eardet = eardet.NewEardetDtctr(alpha, beta_th, linkCap)
+	cd.eardet = eardet.NewEardetDtctr(128, alpha, beta_th, linkCap)
 	cd.rlfd1 = rlfd.NewRlfdDtctr(beta, gamma, t_l)
 	cd.rlfd2 = rlfd.NewRlfdDtctr(beta, gamma, t_l)
 

@@ -60,7 +60,7 @@ func TestResetFloor(t *testing.T) {
 	}
 	for _, test := range tests {
 		//set up
-		ed := NewEardetDtctr(test.alpha, test.beta_th, linkCapacity)
+		ed := NewEardetDtctr(128, test.alpha, test.beta_th, linkCapacity)
 		ed.floor = test.floor
 		//fill buckets to simulate a raised floor
 		for i := uint32(0); i < numCounters; i++ {
@@ -91,7 +91,7 @@ func TestResetFloor(t *testing.T) {
 func TestResetMin(t *testing.T) {
 	alpha_test := uint32(500)
 	beta_th_test := uint32(1000)
-	ed := NewEardetDtctr(alpha_test, beta_th_test, linkCapacity)
+	ed := NewEardetDtctr(128, alpha_test, beta_th_test, linkCapacity)
 	//fill buckets
 	for i := uint32(0); i < numCounters; i++ {
 		ed.counters[i].count = 150
@@ -136,7 +136,7 @@ func findMin(ed *EardetDtctr) *counter {
 func TestMinCounterIsResetAfterPacketInsertion(t *testing.T) {
 	alpha_test := uint32(500)
 	beta_th_test := uint32(1000)
-	ed := NewEardetDtctr(alpha_test, beta_th_test, linkCapacity)
+	ed := NewEardetDtctr(128, alpha_test, beta_th_test, linkCapacity)
 	//insert a packets
 	i := 0
 	for ;i < len(ed.counters) - 1; i++ {
@@ -154,7 +154,7 @@ func TestMinCounterIsResetAfterPacketInsertion(t *testing.T) {
 func TestProcessPktInsertNewFlowInZeroBucket(t *testing.T) {
 	alpha_test := uint32(500)
 	beta_th_test := uint32(5000)
-	ed := NewEardetDtctr(alpha_test, beta_th_test, linkCapacity)
+	ed := NewEardetDtctr(128, alpha_test, beta_th_test, linkCapacity)
 	//insert a packet into the first bucket
 	res := ed.processPkt(0, 200)
 	if res {
@@ -172,7 +172,7 @@ func TestProcessPktInsertNewFlowInZeroBucket(t *testing.T) {
 func TestProcessPktInsertFlowInAlreadyIncrementedBucket(t *testing.T) {
 	alpha_test := uint32(500)
 	beta_th_test := uint32(5000)
-	ed := NewEardetDtctr(alpha_test, beta_th_test, linkCapacity)
+	ed := NewEardetDtctr(128, alpha_test, beta_th_test, linkCapacity)
 	flowid1 := uint32(1)
 	//insert a packet with flow id 6
 	res0 := ed.processPkt(flowid1, 500)
@@ -197,7 +197,7 @@ func TestProcessPktInsertFlowInAlternateBucket(t *testing.T) {
 	beta_th_test := uint32(5000)
 	flowid1 := uint32(0x00000000)
 	flowid2 := uint32(0x00010000)
-	ed := NewEardetDtctr(alpha_test, beta_th_test, linkCapacity)
+	ed := NewEardetDtctr(128, alpha_test, beta_th_test, linkCapacity)
 	//insert first packet
 	res0 := ed.processPkt(flowid1, 500)
 	//insert second packet
@@ -220,7 +220,7 @@ func TestInsertionFails(t *testing.T) {
 	flowid1 := uint32(0)
 	flowid2 := uint32(0x00010000)
 	flowid3 := uint32(0x00020000)
-	ed := NewEardetDtctr(alpha_test, beta_th_test, linkCapacity)
+	ed := NewEardetDtctr(128, alpha_test, beta_th_test, linkCapacity)
 	//insert first and second packet
 	ed.processPkt(flowid1, 500)
 	ed.processPkt(flowid2, 600)
@@ -246,7 +246,7 @@ func TestInsertionFailsFloorIsRaised(t *testing.T) {
 	alpha_test := uint32(500)
 	beta_th_test := uint32(5000)
 	flowid1 := uint32(numCounters + 1)
-	ed := NewEardetDtctr(alpha_test, beta_th_test, linkCapacity)
+	ed := NewEardetDtctr(128, alpha_test, beta_th_test, linkCapacity)
 
 	//insert packets
 	for i := uint32(0); i < numCounters; i++ {
@@ -270,7 +270,7 @@ func TestInsertionFailsFloorIsRaised(t *testing.T) {
 func TestProcessPktInsertTooBig1(t *testing.T) {
 	alpha_test := uint32(500)
 	beta_th_test := uint32(5000)
-	ed := NewEardetDtctr(alpha_test, beta_th_test, linkCapacity)
+	ed := NewEardetDtctr(128, alpha_test, beta_th_test, linkCapacity)
 	flowid1 := uint32(numCounters + 1)
 	size1 := uint32(50001)
 	//insert packet
@@ -283,7 +283,7 @@ func TestProcessPktInsertTooBig1(t *testing.T) {
 func TestProcessPktInsertTooBig2(t *testing.T) {
 	alpha_test := uint32(500)
 	beta_th_test := uint32(5000)
-	ed := NewEardetDtctr(alpha_test, beta_th_test, linkCapacity)
+	ed := NewEardetDtctr(128, alpha_test, beta_th_test, linkCapacity)
 	flowid1 := uint32(numCounters + 1)
 	size1 := uint32(2501)
 	//insert packet
@@ -299,7 +299,7 @@ func TestProcessPktInsertTooBig2(t *testing.T) {
 func TestInsertAfterRaisingFloor1(t *testing.T) {
 	alpha_test := uint32(500)
 	beta_th_test := uint32(5000)
-	ed := NewEardetDtctr(alpha_test, beta_th_test, linkCapacity)
+	ed := NewEardetDtctr(128, alpha_test, beta_th_test, linkCapacity)
 	//insert a packet into every bucket
 	for i := uint32(0); i < numCounters; i++ {
 		ed.processPkt(i, 100)
@@ -323,7 +323,7 @@ func TestInsertAfterRaisingFloor2(t *testing.T) {
 	alpha_test := uint32(500)
 	beta_th_test := uint32(5000)
 	flowid1 := uint32(0x00010000)
-	ed := NewEardetDtctr(alpha_test, beta_th_test, linkCapacity)
+	ed := NewEardetDtctr(128, alpha_test, beta_th_test, linkCapacity)
 	//insert a packet into every bucket
 	for i := uint32(0); i < numCounters; i++ {
 		ed.processPkt(i, 100)
@@ -344,7 +344,7 @@ func TestInsertAfterRaisingFloor2(t *testing.T) {
 
 //this function should insert one virtual traffic packet before the real packet
 func TestDetectBasicInsert(t *testing.T) {
-	ed := NewEardetDtctr(500, 5000, 0.03)
+	ed := NewEardetDtctr(128, 500, 5000, 0.03)
 	ed.Detect(1, 300, 600)
 	if ed.counters[0].count != 19 {
 		t.Errorf("Virtual traffic should increment bucket 0 to 19 but has to %d", ed.counters[0].count)
@@ -358,7 +358,7 @@ func TestDetectBasicInsert(t *testing.T) {
 
 //this function should insert multiple virtual traffic packets before the real packet
 func TestDetectInsertMultiple(t *testing.T) {
-	ed := NewEardetDtctr(500, 1000, 0.03)
+	ed := NewEardetDtctr(128, 500, 1000, 0.03)
 	ed.Detect(numCounters, 300, 60000)
 	if ed.counters[0].count != 999 {
 		t.Errorf("Virtual traffic should increment bucket 0 to 999 but has to %d", ed.counters[0].count)
@@ -372,7 +372,7 @@ func TestDetectInsertMultiple(t *testing.T) {
 
 //test cuckoo hashing
 func TestDisplacement1(t *testing.T) {
-	ed := NewEardetDtctr(500, 1000, linkCapacity)
+	ed := NewEardetDtctr(128, 500, 1000, linkCapacity)
 	ed.processPkt(0x00020001, 100)
 	ed.processPkt(0x00040003, 200)
 	ed.processPkt(0x00030001, 300)
@@ -389,7 +389,7 @@ func TestDisplacement1(t *testing.T) {
 
 //test cuckoo hashing
 func TestDisplacement2(t *testing.T) {
-	ed := NewEardetDtctr(500, 1000, linkCapacity)
+	ed := NewEardetDtctr(128, 500, 1000, linkCapacity)
 	ed.processPkt(0x00030001, 100)
 	ed.processPkt(0x00020003, 400)
 	ed.processPkt(0x00040002, 200)
@@ -408,7 +408,7 @@ func TestDisplacement2(t *testing.T) {
 
 //test cuckoo hashing
 func TestDisplacement3(t *testing.T) {
-	ed := NewEardetDtctr(500, 1000, linkCapacity)
+	ed := NewEardetDtctr(128, 500, 1000, linkCapacity)
 	ed.processPkt(0, 500)
 	ed.processPkt(0x00020001, 700)
 	ed.processPkt(0x00040003, 800)
@@ -476,7 +476,7 @@ func makeRandomInput(n int) [][2]uint32 {
 func BenchmarkProcessPktInsertBasic(b *testing.B) {
 	alpha_test := uint32(500)
 	beta_th_test := uint32(5000)
-	ed := NewEardetDtctr(alpha_test, beta_th_test, 0)
+	ed := NewEardetDtctr(128, alpha_test, beta_th_test, 0)
 	rSlice := makeRandomInput(b.N)
 	var randID uint32
 	var randSize uint32	
@@ -491,7 +491,7 @@ func BenchmarkProcessPktInsertBasic(b *testing.B) {
 func BenchmarkDetectInsertBasic(b *testing.B) {
 	alpha_test := uint32(500)
 	beta_th_test := uint32(5000)
-	ed := NewEardetDtctr(alpha_test, beta_th_test, 0)
+	ed := NewEardetDtctr(128, alpha_test, beta_th_test, 0)
 	rSlice := makeRandomInput(b.N)
 	var randID uint32
 	var randSize uint32

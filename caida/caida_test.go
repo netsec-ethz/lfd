@@ -6,7 +6,7 @@ import (
 	"os"
 	"testing"
 	"time"
-	"unsafe"
+	// "unsafe"
 
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
@@ -16,7 +16,7 @@ import (
 	"github.com/hosslen/lfd/eardet"
 	"github.com/hosslen/lfd/murmur3"
 	"github.com/hosslen/lfd/rlfd"
-	"github.com/hosslen/lfd/clef"
+	// "github.com/hosslen/lfd/clef"
 )
 
 var (
@@ -26,19 +26,26 @@ var (
 	//parameters for
 	//TH_l(t) = gamma_l*t + beta_l
 	//TH_h(t) = gamma_h*t + beta_h
+	//beta_th = ((beta_l + (gamma_l * (alpha + beta_l)) / (linkCapacity / (numOfCounters + 1) - gamma_l)) + 1;
 	//beta_h = alpha + 2*beta_th
 	//gamma_h > p / (n + 1) = p / 129
-	p = float32(1.25) //10Gbps = 1.25B/ns
+	p = float64(1.25) //10Gbps = 1.25B/ns
+    ed_counter_num = uint32(128)
+    gamma_h = p / float64(ed_counter_num + 1)
+    gamma_l = float64(p / 1000)	// low-bandwidth threshold is flow spec
+    beta_l = uint32(3008)		// low-bandwidth threshold is flow spec
 	alpha = uint32(1504)
-	beta_th = uint32(5000)
-	beta = float64(alpha + 2*beta_th)
-	gamma = float64(p / 129.0)
+	// beta_th = uint32(5000)
+	
+	// flow spec:
+	beta = float64(beta_l)
+	gamma = float64(gamma_l)
 	t_l = time.Duration(beta/gamma)
 
     // trace for testing
     trace *TraceData
     pcapFilename = "../resource/10K-test-pkts"
-    maxNumPkts = 1000
+    maxNumPkts = 10000
     pktNumInBinary int     // number of packets written into the binary file
 )
 
@@ -70,7 +77,8 @@ func TestEARDetPerformanceAgainstBaseline(t *testing.T) {
 	blackListBD := make(map[uint32]int)
 
 	//initialize detectors
-	ed := eardet.NewEardetDtctr(alpha, beta_th, p)
+	ed := eardet.NewConfigedEardetDtctr(
+		ed_counter_num, alpha, beta_l, gamma_l, p)
 	bd := baseline.NewBaselineDtctr(beta, gamma)
 
 	//initialize packets
@@ -125,7 +133,9 @@ func TestEARDetPerformanceAgainstBaseline(t *testing.T) {
 		} 
 	}
 	fmt.Printf("TestEARDetPerformanceAgainstBaseline:\n")
-	fmt.Printf("eardetDtctr: alpha=%d, beta_th=%d, p=%fB/ns\n", alpha, beta_th, p)
+	fmt.Printf("eardetDtctr: alpha=%d, gamma_l=%d, beta_l=%d, gamma_h=%d, beta_h=%d, beta_th=%d, p=%fB/ns\n",
+				ed.GetAlpha, ed.GetGamma_l, ed.GetBeta_l,
+				ed.GetGamma_h, ed.GetBeta_h, ed.GetBeta_th, p)
 	fmt.Printf("baselineDtctr: beta=%f, gamma=%f\n", beta, gamma)
 	fmt.Printf("Seed for murmur3: %d\n", murmur3.GetSeed())
 	fmt.Printf("Number of flows: %d\n", bd.NumFlows)
@@ -216,6 +226,7 @@ func TestRLFDPerformanceAgainstBaseline(t *testing.T) {
 }
 
 //measure detection performance of the CLEF detector against the baseline detector
+/*
 func TestCLEFPerformanceAgainstBaseline(t *testing.T) {
 	//FP and FN
 	falsePositives := 0
@@ -240,6 +251,7 @@ func TestCLEFPerformanceAgainstBaseline(t *testing.T) {
 
 	var pkt *caidaPkt
 	var flowID complex128
+    murmur3.ResetSeed()
 	cd.SetCurrentTime(trace.packets[0].Duration)
 	var resCD, resBD bool
 	for i := 0; i < len(trace.packets); i++ {
@@ -294,6 +306,7 @@ func TestCLEFPerformanceAgainstBaseline(t *testing.T) {
 	fmt.Printf("FP (flows): %d FN (flows): %d\n", falsePositives, falseNegatives)
 	fmt.Printf("overuseDamage: %dB, falsePositiveDamage: %dB\n", overuseDamage, falsePositiveDamage)
 }
+*/
 
 //count the hash collisions
 func TestForHashCollisions(t *testing.T) {
@@ -345,7 +358,8 @@ func TestForHashCollisions(t *testing.T) {
 ///////////////////////////////////////////////////////////////////////////////////////////
 func BenchmarkEARDetWithTraceMemoryLowBinary(b *testing.B) {
 	//10Gbps = 1.25B/ns
-	detector := eardet.NewEardetDtctr(alpha, beta_th, p)
+	detector := eardet.NewConfigedEardetDtctr(
+		ed_counter_num, alpha, beta_l, gamma_l, p)
 	var flowID uint32
 	pkt := &caidaPkt{}
 	var set bool
@@ -356,14 +370,21 @@ func BenchmarkEARDetWithTraceMemoryLowBinary(b *testing.B) {
 	if err != nil {
 		fmt.Println("os.Open failed:", err)
 	}
-	defer f.Close()
+    defer f.Close()
 
 	b.StopTimer()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		err = binary.Read(f, binary.LittleEndian, pkt)
 		if err != nil {
-			fmt.Println("binary.Read failed:", err)
+            if err.Error() == "EOF" {
+                // if file is ended, rewind and performa again
+                f.Seek(0, 0)
+                binary.Read(f, binary.LittleEndian, pkt)
+                detector.SetCurrentTime(pkt.Duration)
+            } else {
+                fmt.Println("binary.Read failed:", err)
+            }
 		}
 		//for testing
 		// if i < 10 {
@@ -402,8 +423,14 @@ func BenchmarkBaselineWithTraceMemoryLowBinary(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		err = binary.Read(f, binary.LittleEndian, pkt)
 		if err != nil {
-			fmt.Println("binary.Read failed:", err)
-		}
+            if err.Error() == "EOF" {
+                // if file is ended, rewind and performa again
+                f.Seek(0, 0)
+                binary.Read(f, binary.LittleEndian, pkt)
+            } else {
+                fmt.Println("binary.Read failed:", err)
+            }
+        }
 		//for testing
 		// if i < 10 {
 		// 	fmt.Println(pkt)
@@ -422,7 +449,8 @@ func TestEARDetWithTraceMemoryLowBinary(t *testing.T) {
 	var totalProcTime time.Duration
 	var tic time.Time
 	//10Gbps = 1.25B/ns
-	detector := eardet.NewEardetDtctr(alpha, beta_th, p)
+	detector := eardet.NewConfigedEardetDtctr(
+		ed_counter_num, alpha, beta_l, gamma_l, p)
 	var flowID uint32
 	pkt := &caidaPkt{}
 	var set bool
@@ -527,7 +555,8 @@ func TestEARDetWithTraceMemoryLowDirect(t *testing.T) {
 	var totalProcTime time.Duration
 	var tic time.Time
 	//10Gbps = 1.25B/ns
-	detector := eardet.NewEardetDtctr(alpha, beta_th, p)
+	detector := eardet.NewConfigedEardetDtctr(
+		ed_counter_num, alpha, beta_l, gamma_l, p)
 	var flowID uint32
 	var pkt *caidaPkt
 	var set bool
@@ -631,7 +660,8 @@ func BenchmarkWithTraceLoadedEARDet(b *testing.B) {
         trace = loadPCAPFile(pcapFilename, maxNumPkts)
     }
     //10Gbps = 1.25B/ns
-	detector := eardet.NewEardetDtctr(alpha, beta_th, p)
+	detector := eardet.NewConfigedEardetDtctr(
+		ed_counter_num, alpha, beta_l, gamma_l, p)
 	var flowID uint32
 	var pkt *caidaPkt
 	murmur3.ResetSeed()
