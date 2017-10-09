@@ -44,7 +44,7 @@ var (
 
     // trace for testing
     trace *TraceData
-    pcapFilename = "../resource/equinix-chicago.dirA.20160406-125912.UTC.anon.pcap"
+    pcapFilename = "../resource/10K-test-pkts"
     maxNumPkts = 10000
     pktNumInBinary int     // number of packets written into the binary file
 )
@@ -241,7 +241,10 @@ func TestCLEFPerformanceAgainstBaseline(t *testing.T) {
 	blackListBD := make(map[complex128]int)
 
 	//initialize detectors
-	cd := clef.NewClefDtctr(p, alpha, beta_th, uint32(beta), uint32(gamma), t_l)
+	eardet := eardet.NewConfigedEardetDtctr(ed_counter_num, alpha, beta_l, gamma_l, p)
+	rlfd1 := rlfd.NewRlfdDtctr(uint32(beta), gamma, t_l)
+	rlfd2 := rlfd.NewRlfdDtctr(uint32(beta), gamma, t_l)
+	cd := clef.NewClefDtctr(eardet, rlfd1, rlfd2)
 	bd := baseline.NewBaselineDtctr(beta, gamma)
 
 	//initialize packets
