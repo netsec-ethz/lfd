@@ -29,13 +29,13 @@ type ClefDtctr struct {
 	resultsRlfd2 chan bool
 }
 
-func NewClefDtctr(linkCap float64, alpha, beta_th, beta, gamma uint32, t_l time.Duration) *ClefDtctr {
+func NewClefDtctr(eardet *eardet.EardetDtctr, rlfd1, rlfd2 *rlfd.RlfdDtctr) *ClefDtctr {
 	cd := &ClefDtctr{}
 
 	//set detectors
-	cd.eardet = eardet.NewEardetDtctr(128, alpha, beta_th, linkCap)
-	cd.rlfd1 = rlfd.NewRlfdDtctr(beta, gamma, t_l)
-	cd.rlfd2 = rlfd.NewRlfdDtctr(beta, gamma, t_l)
+	cd.eardet = eardet
+	cd.rlfd1 = rlfd1
+	cd.rlfd2 = rlfd2
 
 	//create channels
 	cd.packetsForEardet = make(chan pktTriple, 3)

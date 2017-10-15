@@ -51,11 +51,11 @@ type RlfdDtctr struct {
 }
 
 //returns a pointer to a new rlfdDtctr
-func NewRlfdDtctr(beta, gamma uint32, t_l time.Duration) *RlfdDtctr {
+func NewRlfdDtctr(beta uint32, gamma float64, t_l time.Duration) *RlfdDtctr {
 	rd := &RlfdDtctr{}
 
 	rd.t_l = t_l
-	rd.th_rlfd = gamma*uint32(t_l) + beta
+	rd.th_rlfd = uint32(gamma*float64(t_l)) + beta
 	rd.level = 0
 	rd.bitmaskIndex = ((1 << s) - 1) << (32 - s) //(2^s - 1) << (32 - s)
 	rd.bitmaskPath = 0
@@ -134,7 +134,7 @@ func (rd *RlfdDtctr) Detect(flowID uint32, size uint32, t time.Duration) bool {
 				return true
 			} else if c.count > rd.th_rlfd && !alt {
 				return true
-			} else if rd.counters[altIndex].count > rd.th_rlfd {
+			} else if alt && rd.counters[altIndex].count > rd.th_rlfd {
 				return true
 			}
 		//we are not on the lowest level
