@@ -6,7 +6,7 @@ import (
 	"os"
 	"testing"
 	"time"
-	// "unsafe"
+	"unsafe"
 
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
@@ -16,7 +16,7 @@ import (
 	"github.com/hosslen/lfd/eardet"
 	"github.com/hosslen/lfd/murmur3"
 	"github.com/hosslen/lfd/rlfd"
-	// "github.com/hosslen/lfd/clef"
+	"github.com/hosslen/lfd/clef"
 )
 
 var (
@@ -47,6 +47,8 @@ var (
     pcapFilename = "../resource/10K-test-pkts"
     maxNumPkts = 10000
     pktNumInBinary int     // number of packets written into the binary file
+
+    maxWatchlistSize = uint32(512)
 )
 
 //to test if it compiles ...
@@ -226,8 +228,8 @@ func TestRLFDPerformanceAgainstBaseline(t *testing.T) {
 }
 
 //measure detection performance of the CLEF detector against the baseline detector
-/*
 func TestCLEFPerformanceAgainstBaseline(t *testing.T) {
+
 	//FP and FN
 	falsePositives := 0
 	falseNegatives := 0
@@ -244,7 +246,7 @@ func TestCLEFPerformanceAgainstBaseline(t *testing.T) {
 	eardet := eardet.NewConfigedEardetDtctr(ed_counter_num, alpha, beta_l, gamma_l, p)
 	rlfd1 := rlfd.NewRlfdDtctr(uint32(beta), gamma, t_l)
 	rlfd2 := rlfd.NewRlfdDtctr(uint32(beta), gamma, t_l)
-	cd := clef.NewClefDtctr(eardet, rlfd1, rlfd2)
+	cd := clef.NewClefDtctr(eardet, rlfd1, rlfd2, t_l, gamma, beta, maxWatchlistSize)
 	bd := baseline.NewBaselineDtctr(beta, gamma)
 
 	//initialize packets
@@ -305,11 +307,10 @@ func TestCLEFPerformanceAgainstBaseline(t *testing.T) {
 	fmt.Printf("Seed for murmur3: %d\n", murmur3.GetSeed())
 	fmt.Printf("Number of flows: %d\n", bd.NumFlows)
 	fmt.Printf("Number of flows detected by baseline: %d\n", len(blackListBD))
-	fmt.Printf("Number of flows detected by rlfd: %d\n", len(blackListRD))
+	fmt.Printf("Number of flows detected by clef: %d\n", len(blackListRD))
 	fmt.Printf("FP (flows): %d FN (flows): %d\n", falsePositives, falseNegatives)
 	fmt.Printf("overuseDamage: %dB, falsePositiveDamage: %dB\n", overuseDamage, falsePositiveDamage)
 }
-*/
 
 //count the hash collisions
 func TestForHashCollisions(t *testing.T) {
