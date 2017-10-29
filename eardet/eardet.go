@@ -189,7 +189,7 @@ func (ed *EardetDtctr) Detect(flowID uint32, size uint32, t time.Duration) bool 
 
     //insert packet
     return ed.processPkt(flowID, size)
-    
+
 }
 
 //add the packet to counters

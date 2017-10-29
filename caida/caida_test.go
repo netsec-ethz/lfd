@@ -681,6 +681,7 @@ func TestBaselineWithTraceMemoryLowDirect(t *testing.T) {
             pktTime, _ := time.ParseDuration(timesScanner.Text() + "s")
 
             pkt = convertToCaidaPkt(&TraceData{}, packet, pktTime)
+
             flowID = murmur3.Murmur3_32_caida(&pkt.Id)
             tic = time.Now()
             res = detector.Detect(flowID, pkt.Size, pkt.Duration)
