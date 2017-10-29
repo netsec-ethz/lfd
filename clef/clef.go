@@ -30,12 +30,12 @@ type ClefDtctr struct {
     //flow lists
     watchlist map[uint32](*leakyBucket)
     maxWatchlistSize uint32
+    watchlistTimeout time.Duration
     blacklist *cuckoo.CuckooTable
 
     //flow specification
     beta float64
     gamma float64
-    t_l time.Duration
 
     //detectors
     eardet *eardet.EardetDtctr
@@ -51,7 +51,7 @@ type ClefDtctr struct {
     resultsRlfd2 chan bool
 }
 
-func NewClefDtctr(eardet *eardet.EardetDtctr, rlfd1, rlfd2 *rlfd.RlfdDtctr, t_l time.Duration, gamma, beta float64, maxWatchlistSize uint32) *ClefDtctr {
+func NewClefDtctr(eardet *eardet.EardetDtctr, rlfd1, rlfd2 *rlfd.RlfdDtctr, gamma, beta float64, maxWatchlistSize uint32) *ClefDtctr {
     cd := &ClefDtctr{}
 
     //set detectors
@@ -70,10 +70,10 @@ func NewClefDtctr(eardet *eardet.EardetDtctr, rlfd1, rlfd2 *rlfd.RlfdDtctr, t_l 
 
     cd.watchlist = make(map[uint32](*leakyBucket))
     cd.maxWatchlistSize = maxWatchlistSize
+    cd.watchlistTimeout = rlfd1.Get_t_l()
 
     cd.blacklist = cuckoo.NewCuckoo()
 
-    cd.t_l = t_l
     cd.gamma = gamma
     cd.beta = beta
 
@@ -103,7 +103,7 @@ func (cd *ClefDtctr) SetCurrentTime(now time.Duration) {
 
 func (cd *ClefDtctr) cleanupWatchlist(t time.Duration) {
     for flowID, _ := range cd.watchlist {
-        if (t - cd.watchlist[flowID].firstTimestamp > cd.t_l) {
+        if (t - cd.watchlist[flowID].firstTimestamp > cd.watchlistTimeout) {
             delete(cd.watchlist, flowID)
         }
     }
@@ -129,7 +129,7 @@ func (cd *ClefDtctr) Detect(id *[16]byte, size uint32, t time.Duration) bool {
 
     // If a flow is already in the watchlist, update its leaky bucket or purge it if expired
     if ok {
-        if (t - flowBucket.firstTimestamp > cd.t_l) {
+        if (t - flowBucket.firstTimestamp > cd.watchlistTimeout) {
             delete(cd.watchlist, flowID)
         } else {
             flowBucket.count += size

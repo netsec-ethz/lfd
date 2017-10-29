@@ -290,7 +290,7 @@ func TestCLEFPerformanceAgainstBaseline(t *testing.T) {
     eardet := eardet.NewConfigedEardetDtctr(ed_counter_num, alpha, beta_l, gamma_l, p)
     rlfd1 := rlfd.NewRlfdDtctr(uint32(beta), gamma, t_l)
     rlfd2 := rlfd.NewRlfdDtctr(uint32(beta), gamma, time.Duration((2*7*gamma_h)/(1.5*gamma))*t_l)
-    cd := clef.NewClefDtctr(eardet, rlfd1, rlfd2, t_l, gamma, beta, maxWatchlistSize)
+    cd := clef.NewClefDtctr(eardet, rlfd1, rlfd2, gamma, beta, maxWatchlistSize)
     bd := baseline.NewBaselineDtctr(beta, gamma)
 
     //initialize packets

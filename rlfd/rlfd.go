@@ -156,5 +156,8 @@ func (rd *RlfdDtctr) Detect(flowID uint32, size uint32, t time.Duration) bool {
     return false
 }
 
-
+// Getter method for t_l
+func (rd *RlfdDtctr) Get_t_l() time.Duration {
+    return rd.t_l
+}
 
