@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"os"
+	"bufio"
 	"testing"
 	"time"
 	// "unsafe"
@@ -16,6 +17,7 @@ import (
 	"github.com/hosslen/lfd/eardet"
 	"github.com/hosslen/lfd/murmur3"
 	"github.com/hosslen/lfd/rlfd"
+	"github.com/stretchr/testify/assert"
 	// "github.com/hosslen/lfd/clef"
 )
 
@@ -44,7 +46,8 @@ var (
 
     // trace for testing
     trace *TraceData
-    pcapFilename = "../resource/10K-test-pkts"
+    pcapFilename = "../resource/10k-test-pkts.pcap"
+    timesFilename = "../resource/10k-test-pkts.times"
     maxNumPkts = 10000
     pktNumInBinary int     // number of packets written into the binary file
 )
@@ -59,7 +62,47 @@ func TestWriteParsedTraceToBinary(t *testing.T) {
     // This test is required to run at very beginning to ensure
     // the binary file has been generated
     // write binary file in temp.dat
-    pktNumInBinary = writeParsedTraceToBinary(pcapFilename)
+    pktNumInBinary = writeParsedTraceToBinary(pcapFilename, timesFilename)
+}
+
+func TestPacketTimestamp(t *testing.T) {
+	// load packets with nanosecond timestamps from timesFilename
+	if trace == nil {
+        trace = loadPCAPFile(pcapFilename, timesFilename, maxNumPkts)
+    }
+
+    // load packets with microsecond timestamps from pcapFilename
+    pcapHandle, pcapErr := pcap.OpenOffline(pcapFilename);
+
+	if pcapErr != nil {
+		fmt.Printf("Failed to open pcap file: %v\n", pcapErr)
+		os.Exit(1)
+	} else {
+		var decoder gopacket.Decoder
+		if pcapHandle.LinkType() == 12 {
+    			decoder = layers.LayerTypeIPv4
+		} else {
+    			decoder = pcapHandle.LinkType()
+		}
+		packetSource := gopacket.NewPacketSource(pcapHandle, decoder)
+		var count = 0
+		for packet := range packetSource.Packets() {
+			captureInfo := &packet.Metadata().CaptureInfo
+    		msTime := captureInfo.Timestamp.Sub(time.Unix(0, 0))
+
+    		truncatedNanoTime :=
+    			trace.packets[count].Duration.Nanoseconds() / 1000
+    		microTime := msTime.Nanoseconds() / 1000
+    		// verify the timestamps from timesFilename is aligned with
+    		// those from pcapFilename
+    		assert.Equal(t, microTime, truncatedNanoTime)
+    		// fmt.Printf("%d | %d\n", microTime, truncatedNanoTime)
+
+			count++
+    		if count >= maxNumPkts {break}
+		}
+	}
+
 }
 
 //measure detection performance of the EARDet detector against the baseline detector
@@ -83,7 +126,7 @@ func TestEARDetPerformanceAgainstBaseline(t *testing.T) {
 
 	//initialize packets
     if trace == nil {
-        trace = loadPCAPFile(pcapFilename, maxNumPkts)
+        trace = loadPCAPFile(pcapFilename, timesFilename, maxNumPkts)
     }
 
 	var flowID uint32
@@ -165,7 +208,7 @@ func TestRLFDPerformanceAgainstBaseline(t *testing.T) {
 
 	//initialize packets
     if trace == nil {
-        trace = loadPCAPFile(pcapFilename, maxNumPkts)
+        trace = loadPCAPFile(pcapFilename, timesFilename, maxNumPkts)
     }
 
 	var flowID uint32
@@ -315,7 +358,7 @@ func TestCLEFPerformanceAgainstBaseline(t *testing.T) {
 func TestForHashCollisions(t *testing.T) {
 	//initialize packets
     if trace == nil {
-        trace = loadPCAPFile(pcapFilename, maxNumPkts)
+        trace = loadPCAPFile(pcapFilename, timesFilename, maxNumPkts)
     }
 
 	myMap := make(map[uint32]([]string))
@@ -569,8 +612,11 @@ func TestEARDetWithTraceMemoryLowDirect(t *testing.T) {
 	murmur3.ResetSeed()
 
 	//test
-	loopOverPCAPFile(pcapFilename, func(packet gopacket.Packet) bool {
-			pkt = convertToCaidaPkt(&TraceData{}, packet)
+	loopOverPCAPFile(
+		pcapFilename,
+		timesFilename, 
+		func(packet gopacket.Packet, pktTime time.Duration) bool {
+			pkt = convertToCaidaPkt(&TraceData{}, packet, pktTime)
 			if !set {
 				detector.SetCurrentTime(pkt.Duration)
 				set = true
@@ -603,18 +649,35 @@ func TestBaselineWithTraceMemoryLowDirect(t *testing.T) {
 	var max time.Duration = 0
 	var min time.Duration = 9223372036854775807
 	murmur3.ResetSeed()
-	if handle, err := pcap.OpenOffline(pcapFilename); err != nil {
-		panic(err)
-	} else {
+
+	pcapHandle, pcapErr := pcap.OpenOffline(pcapFilename);
+    timesHandle, timesErr := os.Open(timesFilename);
+
+	if pcapErr != nil {
+		fmt.Printf("Failed to open pcap file: %v\n", pcapErr)
+		os.Exit(1)
+	} else if timesErr != nil {
+        fmt.Printf("Failed to open times file: %v\n", timesErr)
+        os.Exit(1)
+    } else {
 		var decoder gopacket.Decoder
-		if handle.LinkType() == 12 {
+		if pcapHandle.LinkType() == 12 {
     			decoder = layers.LayerTypeIPv4
 		} else {
-    			decoder = handle.LinkType()
+    			decoder = pcapHandle.LinkType()
 		}
-		packetSource := gopacket.NewPacketSource(handle, decoder)
+		packetSource := gopacket.NewPacketSource(pcapHandle, decoder)
+        timesScanner := bufio.NewScanner(timesHandle)
 		for packet := range packetSource.Packets() {
-			pkt = convertToCaidaPkt(&TraceData{}, packet)
+			if !timesScanner.Scan() {
+                // no time stamp to read
+                fmt.Printf("Wrong trace files: timestamps are less" +
+                    "than packets\n")
+                os.Exit(1)
+            }
+            pktTime, _ := time.ParseDuration(timesScanner.Text() + "s")
+
+			pkt = convertToCaidaPkt(&TraceData{}, packet, pktTime)
 			flowID = murmur3.Murmur3_32_caida(&pkt.Id)
 			tic = time.Now()
 			res = detector.Detect(flowID, pkt.Size, pkt.Duration)
@@ -638,7 +701,7 @@ func TestBaselineWithTraceMemoryLowDirect(t *testing.T) {
 func BenchmarkWithTraceLoadedBaseline(b *testing.B) {
 	//initialize packets
 	if trace == nil {
-        trace = loadPCAPFile(pcapFilename, maxNumPkts)
+        trace = loadPCAPFile(pcapFilename, timesFilename, maxNumPkts)
     }
     //10Gbps = 1.25B/ns
 	detector := baseline.NewBaselineDtctr(beta, gamma)
@@ -660,7 +723,7 @@ func BenchmarkWithTraceLoadedBaseline(b *testing.B) {
 func BenchmarkWithTraceLoadedEARDet(b *testing.B) {
 	//initialize packets
 	if trace == nil {
-        trace = loadPCAPFile(pcapFilename, maxNumPkts)
+        trace = loadPCAPFile(pcapFilename, timesFilename, maxNumPkts)
     }
     //10Gbps = 1.25B/ns
 	detector := eardet.NewConfigedEardetDtctr(
@@ -684,7 +747,7 @@ func BenchmarkWithTraceLoadedEARDet(b *testing.B) {
 func BenchmarkWithTraceLoadedRlfd(b *testing.B) {
 	//initialize packets
 	if trace == nil {
-        trace = loadPCAPFile(pcapFilename, maxNumPkts)
+        trace = loadPCAPFile(pcapFilename, timesFilename, maxNumPkts)
     }
 	detector := rlfd.NewRlfdDtctr(uint32(beta), gamma, 100)
 	var flowID uint32
