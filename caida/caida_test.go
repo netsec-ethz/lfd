@@ -80,9 +80,9 @@ func TestPacketTimestamp(t *testing.T) {
     } else {
         var decoder gopacket.Decoder
         if pcapHandle.LinkType() == 12 {
-                decoder = layers.LayerTypeIPv4
+            decoder = layers.LayerTypeIPv4
         } else {
-                decoder = pcapHandle.LinkType()
+            decoder = pcapHandle.LinkType()
         }
         packetSource := gopacket.NewPacketSource(pcapHandle, decoder)
         var count = 0
@@ -662,9 +662,9 @@ func TestBaselineWithTraceMemoryLowDirect(t *testing.T) {
     } else {
         var decoder gopacket.Decoder
         if pcapHandle.LinkType() == 12 {
-                decoder = layers.LayerTypeIPv4
+            decoder = layers.LayerTypeIPv4
         } else {
-                decoder = pcapHandle.LinkType()
+            decoder = pcapHandle.LinkType()
         }
         packetSource := gopacket.NewPacketSource(pcapHandle, decoder)
         timesScanner := bufio.NewScanner(timesHandle)
