@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"time"
+    "bufio"
 
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
@@ -24,7 +25,7 @@ type TraceData struct {
     udpCounter int
 }
 
-type packetHandler func(packet gopacket.Packet) bool
+type packetHandler func(packet gopacket.Packet, pktTime time.Duration) bool
 
 //encapsulates the information of one "packet" of the caida trace file
 type caidaPkt struct {
@@ -55,31 +56,52 @@ func printCounters(trace *TraceData) {
 }
 
 //loops over all packets in the pcap file
-func loopOverPCAPFile(pcapFilename string, myHandler packetHandler) {
-	if handle, err := pcap.OpenOffline(pcapFilename); err != nil {
-		fmt.Printf("pcap.OpenOffline failed: %v\n", err)
+// timesFilename is the path of the file containing nanosecond timestamps
+// for each packet. 
+func loopOverPCAPFile(
+        pcapFilename string, timesFilename string, myHandler packetHandler) {
+    pcapHandle, pcapErr := pcap.OpenOffline(pcapFilename);
+    timesHandle, timesErr := os.Open(timesFilename);
+
+	if pcapErr != nil {
+		fmt.Printf("Failed to open pcap file: %v\n", pcapErr)
 		os.Exit(1)
-	} else {
+	} else if timesErr != nil {
+        fmt.Printf("Failed to open times file: %v\n", timesErr)
+        os.Exit(1)
+    } else {
 		var decoder gopacket.Decoder
-		if handle.LinkType() == 12 {
+		if pcapHandle.LinkType() == 12 {
 			decoder = layers.LayerTypeIPv4
 		} else {
-			decoder = handle.LinkType()
+			decoder = pcapHandle.LinkType()
 		}
-		packetSource := gopacket.NewPacketSource(handle, decoder)
+		packetSource := gopacket.NewPacketSource(pcapHandle, decoder)
+        timesScanner := bufio.NewScanner(timesHandle)
 		for packet := range packetSource.Packets() {
-            if !myHandler(packet) {break}
+            if !timesScanner.Scan() {
+                // no time stamp to read
+                fmt.Printf("Wrong trace files: timestamps are less" +
+                    "than packets\n")
+                os.Exit(1)
+            }
+            // timestamp with precision of nanosecond
+            pktTime, _ := time.ParseDuration(timesScanner.Text() + "s")
+            if !myHandler(packet, pktTime) {break}
 		}
+        timesHandle.Close()
 	}
 }
 
 //converts a gopacket.Packet into a caidaPkt
 func convertToCaidaPkt(
         trace *TraceData,
-        packet gopacket.Packet) *caidaPkt {
+        packet gopacket.Packet,
+        pktTime time.Duration) *caidaPkt {
 	pkt := &caidaPkt{}
 	captureInfo := &packet.Metadata().CaptureInfo
-	pkt.Duration = captureInfo.Timestamp.Sub(time.Unix(0, 0))
+    // pkt.Duration = captureInfo.Timestamp.Sub(time.Unix(0, 0))
+    pkt.Duration = pktTime
 	pkt.Size = uint32(captureInfo.Length)
 
 	if ipLayer := packet.Layer(layers.LayerTypeIPv4); ipLayer != nil {
@@ -124,12 +146,15 @@ func convertToCaidaPkt(
 }
 
 //loades the caida trace file into packets
-func loadPCAPFile(pcapFilename string, maxNumPkts int) *TraceData{
+func loadPCAPFile(
+        pcapFilename string, timesFilename string, maxNumPkts int) *TraceData{
     trace = newTraceData(maxNumPkts)
-    // loopOverPCAPFile(pcapFilename, loadPCAPFileHandler)
-	loopOverPCAPFile(pcapFilename, func(packet gopacket.Packet) bool {
+	loopOverPCAPFile(
+        pcapFilename,
+        timesFilename,
+        func(packet gopacket.Packet, pktTime time.Duration) bool {
             trace.packets[trace.packetCounter] =
-                convertToCaidaPkt(trace, packet)
+                convertToCaidaPkt(trace, packet, pktTime)
             trace.packetCounter++
             
             if trace.packetCounter >= len(trace.packets) {
@@ -148,7 +173,7 @@ func loadPCAPFile(pcapFilename string, maxNumPkts int) *TraceData{
 
 //parses the caida packet trace and writes the output to a binary file
 func writeParsedTraceToBinary(
-        pcapFilename string) int {
+        pcapFilename string, timesFilename string) int {
 	//open file
 	f, err := os.Create("temp.dat")
 	if err != nil {
@@ -157,10 +182,13 @@ func writeParsedTraceToBinary(
 	}
 	defer f.Close()
 
-    trace = newTraceData(0) // no need to store packets here
+    trace := newTraceData(0) // no need to store packets here
 	//loop over trace
-	loopOverPCAPFile(pcapFilename, func(packet gopacket.Packet) bool {
-			pkt := convertToCaidaPkt(trace, packet)
+	loopOverPCAPFile(
+        pcapFilename,
+        timesFilename,
+        func(packet gopacket.Packet, pktTime time.Duration) bool {
+			pkt := convertToCaidaPkt(trace, packet, pktTime)
 			//write to binary file
 			err = binary.Write(f, binary.LittleEndian, pkt)
 			if err != nil {
