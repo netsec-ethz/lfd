@@ -1,10 +1,10 @@
 package clef
 
 import (
-	"testing"
-	"fmt"
+    "testing"
+    "fmt"
 )
 
 func TestDoNothing(t *testing.T) {
-	fmt.Println("Do nothing ...")
+    fmt.Println("Do nothing ...")
 }
