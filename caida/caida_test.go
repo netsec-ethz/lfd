@@ -57,7 +57,7 @@ func TestDoNothing(t *testing.T) {
     fmt.Println("Do nothing ...")
 }
 
-//parses the trace file specified in caida.go and writes the caidaPkts to a binary file
+//parses the trace file specified in caida.go and writes the CaidaPkts to a binary file
 func TestWriteParsedTraceToBinary(t *testing.T) {
     // This test is required to run at very beginning to ensure
     // the binary file has been generated
@@ -68,7 +68,7 @@ func TestWriteParsedTraceToBinary(t *testing.T) {
 func TestPacketTimestamp(t *testing.T) {
     // load packets with nanosecond timestamps from timesFilename
     if trace == nil {
-        trace = loadPCAPFile(pcapFilename, timesFilename, maxNumPkts)
+        trace = LoadPCAPFile(pcapFilename, timesFilename, maxNumPkts)
     }
 
     // load packets with microsecond timestamps from pcapFilename
@@ -91,7 +91,7 @@ func TestPacketTimestamp(t *testing.T) {
             msTime := captureInfo.Timestamp.Sub(time.Unix(0, 0))
 
             truncatedNanoTime :=
-                trace.packets[count].Duration.Nanoseconds() / 1000
+                trace.Packets[count].Duration.Nanoseconds() / 1000
             microTime := msTime.Nanoseconds() / 1000
             // verify the timestamps from timesFilename is aligned with
             // those from pcapFilename
@@ -126,16 +126,16 @@ func TestEARDetPerformanceAgainstBaseline(t *testing.T) {
 
     //initialize packets
     if trace == nil {
-        trace = loadPCAPFile(pcapFilename, timesFilename, maxNumPkts)
+        trace = LoadPCAPFile(pcapFilename, timesFilename, maxNumPkts)
     }
 
     var flowID uint32
-    var pkt *caidaPkt
+    var pkt *CaidaPkt
     murmur3.ResetSeed()
-    ed.SetCurrentTime(trace.packets[0].Duration)
+    ed.SetCurrentTime(trace.Packets[0].Duration)
     var resED, resBD bool
-    for i := 0; i < len(trace.packets); i++ {
-        pkt = trace.packets[i]
+    for i := 0; i < len(trace.Packets); i++ {
+        pkt = trace.Packets[i]
         flowID = murmur3.Murmur3_32_caida(&pkt.Id)
         if _, ok := blackListED[flowID]; !ok {
             resED = ed.Detect(flowID, pkt.Size, pkt.Duration)
@@ -208,16 +208,16 @@ func TestRLFDPerformanceAgainstBaseline(t *testing.T) {
 
     //initialize packets
     if trace == nil {
-        trace = loadPCAPFile(pcapFilename, timesFilename, maxNumPkts)
+        trace = LoadPCAPFile(pcapFilename, timesFilename, maxNumPkts)
     }
 
     var flowID uint32
-    var pkt *caidaPkt
+    var pkt *CaidaPkt
     murmur3.ResetSeed()
-    rd.SetCurrentTime(trace.packets[0].Duration)
+    rd.SetCurrentTime(trace.Packets[0].Duration)
     var resRD, resBD bool
-    for i := 0; i < len(trace.packets); i++ {
-        pkt = trace.packets[i]
+    for i := 0; i < len(trace.Packets); i++ {
+        pkt = trace.Packets[i]
         flowID = murmur3.Murmur3_32_caida(&pkt.Id)
         if _, ok := blackListRD[flowID]; !ok {
             resRD = rd.Detect(flowID, pkt.Size, pkt.Duration)
@@ -292,16 +292,16 @@ func TestCLEFPerformanceAgainstBaseline(t *testing.T) {
 
     //initialize packets
     if trace == nil {
-        trace = loadPCAPFile(pcapFilename, maxNumPkts)
+        trace = LoadPCAPFile(pcapFilename, maxNumPkts)
     }
 
-    var pkt *caidaPkt
+    var pkt *CaidaPkt
     var flowID complex128
     murmur3.ResetSeed()
-    cd.SetCurrentTime(trace.packets[0].Duration)
+    cd.SetCurrentTime(trace.Packets[0].Duration)
     var resCD, resBD bool
-    for i := 0; i < len(trace.packets); i++ {
-        pkt = trace.packets[i]
+    for i := 0; i < len(trace.Packets); i++ {
+        pkt = trace.Packets[i]
         flowID = *((*complex128) (unsafe.Pointer(&pkt.Id)))
         if _, ok := blackListRD[flowID]; !ok {
             resCD = cd.Detect(&pkt.Id, pkt.Size, pkt.Duration)
@@ -358,17 +358,17 @@ func TestCLEFPerformanceAgainstBaseline(t *testing.T) {
 func TestForHashCollisions(t *testing.T) {
     //initialize packets
     if trace == nil {
-        trace = loadPCAPFile(pcapFilename, timesFilename, maxNumPkts)
+        trace = LoadPCAPFile(pcapFilename, timesFilename, maxNumPkts)
     }
 
     myMap := make(map[uint32]([]string))
 
     var flowID uint32
     var bucket []string
-    var pkt *caidaPkt
+    var pkt *CaidaPkt
     murmur3.ResetSeed()
-    for i := 0; i < len(trace.packets); i++ {
-        pkt = trace.packets[i]
+    for i := 0; i < len(trace.Packets); i++ {
+        pkt = trace.Packets[i]
         flowID = murmur3.Murmur3_32_caida(&pkt.Id)
         bucket = myMap[flowID]
         if bucket == nil {
@@ -407,7 +407,7 @@ func BenchmarkEARDetWithTraceMemoryLowBinary(b *testing.B) {
     detector := eardet.NewConfigedEardetDtctr(
         ed_counter_num, alpha, beta_l, gamma_l, p)
     var flowID uint32
-    pkt := &caidaPkt{}
+    pkt := &CaidaPkt{}
     var set bool
     murmur3.ResetSeed()
 
@@ -454,7 +454,7 @@ func BenchmarkBaselineWithTraceMemoryLowBinary(b *testing.B) {
     //10Gbps = 1.25B/ns
     detector := baseline.NewBaselineDtctr(beta, gamma)
     var flowID uint32
-    pkt := &caidaPkt{}
+    pkt := &CaidaPkt{}
     murmur3.ResetSeed()
 
     //open file
@@ -498,7 +498,7 @@ func TestEARDetWithTraceMemoryLowBinary(t *testing.T) {
     detector := eardet.NewConfigedEardetDtctr(
         ed_counter_num, alpha, beta_l, gamma_l, p)
     var flowID uint32
-    pkt := &caidaPkt{}
+    pkt := &CaidaPkt{}
     var set bool
     var temp time.Duration
     var max time.Duration = 0
@@ -552,7 +552,7 @@ func TestBaselinetWithTraceMemoryLowBinary(t *testing.T) {
     //10Gbps = 1.25B/ns
     detector := baseline.NewBaselineDtctr(beta, gamma)
     var flowID uint32
-    pkt := &caidaPkt{}
+    pkt := &CaidaPkt{}
     var temp time.Duration
     var max time.Duration = 0
     var min time.Duration = 9223372036854775807
@@ -604,7 +604,7 @@ func TestEARDetWithTraceMemoryLowDirect(t *testing.T) {
     detector := eardet.NewConfigedEardetDtctr(
         ed_counter_num, alpha, beta_l, gamma_l, p)
     var flowID uint32
-    var pkt *caidaPkt
+    var pkt *CaidaPkt
     var set bool
     var temp time.Duration
     var max time.Duration = 0
@@ -644,7 +644,7 @@ func TestBaselineWithTraceMemoryLowDirect(t *testing.T) {
     //10Gbps = 1.25B/ns
     detector := baseline.NewBaselineDtctr(beta, gamma)
     var flowID uint32
-    var pkt *caidaPkt
+    var pkt *CaidaPkt
     var temp time.Duration
     var max time.Duration = 0
     var min time.Duration = 9223372036854775807
@@ -701,12 +701,12 @@ func TestBaselineWithTraceMemoryLowDirect(t *testing.T) {
 func BenchmarkWithTraceLoadedBaseline(b *testing.B) {
     //initialize packets
     if trace == nil {
-        trace = loadPCAPFile(pcapFilename, timesFilename, maxNumPkts)
+        trace = LoadPCAPFile(pcapFilename, timesFilename, maxNumPkts)
     }
     //10Gbps = 1.25B/ns
     detector := baseline.NewBaselineDtctr(beta, gamma)
     var flowID uint32
-    var pkt *caidaPkt
+    var pkt *CaidaPkt
     murmur3.ResetSeed()
     if (maxNumPkts < b.N) {
         fmt.Printf("Warning: Not enough packets in the trace, benchmark might be inaccurate!")
@@ -714,7 +714,7 @@ func BenchmarkWithTraceLoadedBaseline(b *testing.B) {
 
     b.ResetTimer()
     for i := 0; i < b.N; i++ {
-        pkt = trace.packets[i % maxNumPkts]
+        pkt = trace.Packets[i % maxNumPkts]
         flowID = murmur3.Murmur3_32_caida(&pkt.Id)
         res = detector.Detect(flowID, pkt.Size, pkt.Duration)
     }
@@ -723,22 +723,22 @@ func BenchmarkWithTraceLoadedBaseline(b *testing.B) {
 func BenchmarkWithTraceLoadedEARDet(b *testing.B) {
     //initialize packets
     if trace == nil {
-        trace = loadPCAPFile(pcapFilename, timesFilename, maxNumPkts)
+        trace = LoadPCAPFile(pcapFilename, timesFilename, maxNumPkts)
     }
     //10Gbps = 1.25B/ns
     detector := eardet.NewConfigedEardetDtctr(
         ed_counter_num, alpha, beta_l, gamma_l, p)
     var flowID uint32
-    var pkt *caidaPkt
+    var pkt *CaidaPkt
     murmur3.ResetSeed()
-    detector.SetCurrentTime(trace.packets[0].Duration)
+    detector.SetCurrentTime(trace.Packets[0].Duration)
     if (maxNumPkts < b.N) {
         fmt.Printf("Warning: Not enough packets in the trace, benchmark might be inaccurate!")
     }
 
     b.ResetTimer()
     for i := 0; i < b.N; i++ {
-        pkt = trace.packets[i % maxNumPkts]
+        pkt = trace.Packets[i % maxNumPkts]
         flowID = murmur3.Murmur3_32_caida(&pkt.Id)
         res = detector.Detect(flowID, pkt.Size, pkt.Duration)
     }
@@ -747,20 +747,20 @@ func BenchmarkWithTraceLoadedEARDet(b *testing.B) {
 func BenchmarkWithTraceLoadedRlfd(b *testing.B) {
     //initialize packets
     if trace == nil {
-        trace = loadPCAPFile(pcapFilename, timesFilename, maxNumPkts)
+        trace = LoadPCAPFile(pcapFilename, timesFilename, maxNumPkts)
     }
     detector := rlfd.NewRlfdDtctr(uint32(beta), gamma, 100)
     var flowID uint32
-    var pkt *caidaPkt
+    var pkt *CaidaPkt
     murmur3.ResetSeed()
-    detector.SetCurrentTime(trace.packets[0].Duration)
+    detector.SetCurrentTime(trace.Packets[0].Duration)
     if (maxNumPkts < b.N) {
         fmt.Printf("Warning: Not enough packets in the trace, benchmark might be inaccurate!")
     }
 
     b.ResetTimer()
     for i := 0; i < b.N; i++ {
-        pkt = trace.packets[i % maxNumPkts]
+        pkt = trace.Packets[i % maxNumPkts]
         flowID = murmur3.Murmur3_32_caida(&pkt.Id)
         res = detector.Detect(flowID, pkt.Size, pkt.Duration)
     }

@@ -9,10 +9,12 @@ import (
 
 var _ = fmt.Println
 
+// TODO(hao): make the RLFD configurable
 const (
     //number of counters in a virtual counter node
     m = uint32(8)
     //s = log2(m)
+    // TODO(hao): what is s?
     s = uint32(3)
     //must hold: s * d < 32
     //depth of the virtual counter tree
@@ -63,6 +65,22 @@ func NewRlfdDtctr(beta uint32, gamma float64, t_l time.Duration) *RlfdDtctr {
     rd.reset = true
 
     return rd
+}
+
+func (rd *RlfdDtctr) GetT_l() time.Duration {
+    return rd.t_l
+}
+
+func (rd *RlfdDtctr) GetTh() uint32 {
+    return rd.th_rlfd
+}
+
+func (rd *RlfdDtctr) GetDepth() uint32 {
+    return d
+}
+
+func (rd *RlfdDtctr) GetNumCountersPerNode() uint32 {
+    return m
 }
 
 func (rd *RlfdDtctr) SetCurrentTime(t time.Duration) {

@@ -17,18 +17,18 @@ import (
 )
 
 type TraceData struct {
-    packets [](*caidaPkt)
-    packetsInitialized bool
-    packetCounter int
-    errCounter int
-    tcpCounter int
-    udpCounter int
+    Packets [](*CaidaPkt)
+    PacketsInitialized bool
+    PacketCounter int
+    ErrCounter int
+    TcpCounter int
+    UdpCounter int
 }
 
 type packetHandler func(packet gopacket.Packet, pktTime time.Duration) bool
 
 //encapsulates the information of one "packet" of the caida trace file
-type caidaPkt struct {
+type CaidaPkt struct {
     Duration time.Duration
     //SrcIP (4 bytes)| DstIP (4 bytes)| Protocol (1 byte)| PortNumSrc (2 bytes)| PortNumDst (2 bytes) | 0 (3 bytes)
     Id [16]byte
@@ -38,21 +38,21 @@ type caidaPkt struct {
 // Create a TraceData instance
 func newTraceData(maxNumPkts int) *TraceData {
     trace := &TraceData{}
-    trace.packets = make([](*caidaPkt), maxNumPkts)
-    trace.packetsInitialized = false
-    trace.packetCounter = 0
-    trace.errCounter = 0
-    trace.tcpCounter = 0
-    trace.udpCounter = 0
+    trace.Packets = make([](*CaidaPkt), maxNumPkts)
+    trace.PacketsInitialized = false
+    trace.PacketCounter = 0
+    trace.ErrCounter = 0
+    trace.TcpCounter = 0
+    trace.UdpCounter = 0
     return trace
 }
 
 //prints out the counters
 func printCounters(trace *TraceData) {
-    fmt.Printf("Total number of packets: %d\n", trace.packetCounter)
-    fmt.Printf("Total number of errors: %d\n", trace.errCounter)
-    fmt.Printf("Number of TCP over IPv4 packets: %d\n", trace.tcpCounter)
-    fmt.Printf("Number of UDP over IPv4 packets: %d\n", trace.udpCounter)
+    fmt.Printf("Total number of packets: %d\n", trace.PacketCounter)
+    fmt.Printf("Total number of errors: %d\n", trace.ErrCounter)
+    fmt.Printf("Number of TCP over IPv4 packets: %d\n", trace.TcpCounter)
+    fmt.Printf("Number of UDP over IPv4 packets: %d\n", trace.UdpCounter)
 }
 
 //loops over all packets in the pcap file
@@ -93,12 +93,12 @@ func loopOverPCAPFile(
     }
 }
 
-//converts a gopacket.Packet into a caidaPkt
+//converts a gopacket.Packet into a CaidaPkt
 func convertToCaidaPkt(
         trace *TraceData,
         packet gopacket.Packet,
-        pktTime time.Duration) *caidaPkt {
-    pkt := &caidaPkt{}
+        pktTime time.Duration) *CaidaPkt {
+    pkt := &CaidaPkt{}
     captureInfo := &packet.Metadata().CaptureInfo
     // pkt.Duration = captureInfo.Timestamp.Sub(time.Unix(0, 0))
     pkt.Duration = pktTime
@@ -122,7 +122,7 @@ func convertToCaidaPkt(
         // tcp.DstPort uint16
         pkt.Id[11] = byte(tcp.DstPort >> 8)
         pkt.Id[12] = byte(tcp.DstPort)
-        trace.tcpCounter++
+        trace.TcpCounter++
     }
 
     if udpLayer := packet.Layer(layers.LayerTypeUDP); udpLayer != nil {
@@ -132,12 +132,12 @@ func convertToCaidaPkt(
         // tcp.DstPort uint16
         pkt.Id[11] = byte(udp.DstPort >> 8)
         pkt.Id[12] = byte(udp.DstPort)
-        trace.udpCounter++
+        trace.UdpCounter++
     }
 
     //note that this is about 0.04% of all packets of this trace
     if err := packet.ErrorLayer(); err != nil {
-        trace.errCounter++
+        trace.ErrCounter++
         // fmt.Printf("Error decoding some part of the packet: %v\n", err)
     }
     // fmt.Println(pkt)
@@ -146,18 +146,18 @@ func convertToCaidaPkt(
 }
 
 //loades the caida trace file into packets
-func loadPCAPFile(
+func LoadPCAPFile(
         pcapFilename string, timesFilename string, maxNumPkts int) *TraceData{
-    trace = newTraceData(maxNumPkts)
+    trace := newTraceData(maxNumPkts)
     loopOverPCAPFile(
         pcapFilename,
         timesFilename,
         func(packet gopacket.Packet, pktTime time.Duration) bool {
-            trace.packets[trace.packetCounter] =
+            trace.Packets[trace.PacketCounter] =
                 convertToCaidaPkt(trace, packet, pktTime)
-            trace.packetCounter++
+            trace.PacketCounter++
             
-            if trace.packetCounter >= len(trace.packets) {
+            if trace.PacketCounter >= len(trace.Packets) {
                 // should break the loop, because packets is full
                 return false
             }
@@ -165,7 +165,7 @@ func loadPCAPFile(
             return true   
         })
 
-    trace.packetsInitialized = true
+    trace.PacketsInitialized = true
     printCounters(trace)
 
     return trace
@@ -195,22 +195,22 @@ func writeParsedTraceToBinary(
                 fmt.Printf("binary.Write failed: %v\n", err)
                 os.Exit(1)
             }
-            if trace.packetCounter < 10 {
+            if trace.PacketCounter < 10 {
                 fmt.Println(pkt)
             }
-            trace.packetCounter++
+            trace.PacketCounter++
 
             // can read and write the next packet
             return true
         })
 
     printCounters(trace)
-    return trace.packetCounter
+    return trace.PacketCounter
     // //rewind file
     // f.Seek(0, 0)
 
     // //test read
-    // pkt2 := &caidaPkt{}
+    // pkt2 := &CaidaPkt{}
     // for i := 0; i < 10; i++ {
     //  err = binary.Read(f, binary.LittleEndian, pkt2)
     //  if err != nil {
@@ -231,7 +231,7 @@ func test() {
     //10Gbps = 1.25B/ns
     detector := eardet.NewEardetDtctr(128, 500, 1000, 1.25)
     var flowID uint32
-    pkt := &caidaPkt{}
+    pkt := &CaidaPkt{}
     var set bool
     var temp time.Duration
     var max time.Duration = 0
