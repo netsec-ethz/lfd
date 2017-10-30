@@ -70,7 +70,7 @@ func NewClefDtctr(eardet *eardet.EardetDtctr, rlfd1, rlfd2 *rlfd.RlfdDtctr, gamm
 
     cd.watchlist = make(map[uint32](*leakyBucket))
     cd.maxWatchlistSize = maxWatchlistSize
-    cd.watchlistTimeout = rlfd1.Get_t_l()
+    cd.watchlistTimeout = rlfd1.Get_t_l() // TODO: think how to best set this value
 
     cd.blacklist = cuckoo.NewCuckoo()
 
