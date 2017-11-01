@@ -7,7 +7,7 @@ import (
     "bufio"
     "testing"
     "time"
-    // "unsafe"
+    "unsafe"
 
     "github.com/google/gopacket"
     "github.com/google/gopacket/layers"
@@ -17,8 +17,9 @@ import (
     "github.com/hosslen/lfd/eardet"
     "github.com/hosslen/lfd/murmur3"
     "github.com/hosslen/lfd/rlfd"
+    "github.com/hosslen/lfd/clef"
+
     "github.com/stretchr/testify/assert"
-    // "github.com/hosslen/lfd/clef"
 )
 
 var (
@@ -50,6 +51,8 @@ var (
     timesFilename = "../resource/10k-test-pkts.times"
     maxNumPkts = 10000
     pktNumInBinary int     // number of packets written into the binary file
+
+    maxWatchlistSize = uint32(512)
 )
 
 //to test if it compiles ...
@@ -269,8 +272,8 @@ func TestRLFDPerformanceAgainstBaseline(t *testing.T) {
 }
 
 //measure detection performance of the CLEF detector against the baseline detector
-/*
 func TestCLEFPerformanceAgainstBaseline(t *testing.T) {
+
     //FP and FN
     falsePositives := 0
     falseNegatives := 0
@@ -286,8 +289,8 @@ func TestCLEFPerformanceAgainstBaseline(t *testing.T) {
     //initialize detectors
     eardet := eardet.NewConfigedEardetDtctr(ed_counter_num, alpha, beta_l, gamma_l, p)
     rlfd1 := rlfd.NewRlfdDtctr(uint32(beta), gamma, t_l)
-    rlfd2 := rlfd.NewRlfdDtctr(uint32(beta), gamma, t_l)
-    cd := clef.NewClefDtctr(eardet, rlfd1, rlfd2)
+    rlfd2 := rlfd.NewRlfdDtctr(uint32(beta), gamma, time.Duration((2*7*gamma_h)/(1.5*gamma))*t_l)
+    cd := clef.NewClefDtctr(eardet, rlfd1, rlfd2, gamma, beta, maxWatchlistSize)
     bd := baseline.NewBaselineDtctr(beta, gamma)
 
     //initialize packets
@@ -298,6 +301,7 @@ func TestCLEFPerformanceAgainstBaseline(t *testing.T) {
     var pkt *caidaPkt
     var flowID complex128
     murmur3.ResetSeed()
+
     cd.SetCurrentTime(trace.packets[0].Duration)
     var resCD, resBD bool
     for i := 0; i < len(trace.packets); i++ {
@@ -348,11 +352,10 @@ func TestCLEFPerformanceAgainstBaseline(t *testing.T) {
     fmt.Printf("Seed for murmur3: %d\n", murmur3.GetSeed())
     fmt.Printf("Number of flows: %d\n", bd.NumFlows)
     fmt.Printf("Number of flows detected by baseline: %d\n", len(blackListBD))
-    fmt.Printf("Number of flows detected by rlfd: %d\n", len(blackListRD))
+    fmt.Printf("Number of flows detected by clef: %d\n", len(blackListRD))
     fmt.Printf("FP (flows): %d FN (flows): %d\n", falsePositives, falseNegatives)
     fmt.Printf("overuseDamage: %dB, falsePositiveDamage: %dB\n", overuseDamage, falsePositiveDamage)
 }
-*/
 
 //count the hash collisions
 func TestForHashCollisions(t *testing.T) {
@@ -678,6 +681,7 @@ func TestBaselineWithTraceMemoryLowDirect(t *testing.T) {
             pktTime, _ := time.ParseDuration(timesScanner.Text() + "s")
 
             pkt = convertToCaidaPkt(&TraceData{}, packet, pktTime)
+
             flowID = murmur3.Murmur3_32_caida(&pkt.Id)
             tic = time.Now()
             res = detector.Detect(flowID, pkt.Size, pkt.Duration)

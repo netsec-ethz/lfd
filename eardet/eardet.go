@@ -18,10 +18,10 @@ package eardet
 import (
     // "fmt"
     "time"
+    "math"
 )
 
 //TODO:
-//Take care of carry-over
 //Change the way we find the new minimum
 
 const (
@@ -67,6 +67,9 @@ type EardetDtctr struct {
 
     //nanoseconds passed since start of interval
     currentTime time.Duration
+
+    //carry-over
+    co float64
 }
 
 //constructors
@@ -160,12 +163,13 @@ func (ed *EardetDtctr) Detect(flowID uint32, size uint32, t time.Duration) bool 
     if (ed.currentTime < t) {
         //advance currentTime
         oldTime := ed.currentTime
-        //TODO: deal with the carry
         ed.currentTime = t + time.Duration(float64(size)/ed.linkCap)
         
         //calculate virtual traffic size
-        //TODO: deal with the carry
-        virtualTrafficSize := uint32(float64(t - oldTime)*ed.linkCap) + 1
+        virtualTrafficSizeRaw := float64(t - oldTime)*ed.linkCap
+        virtualTrafficSize := round(virtualTrafficSizeRaw + ed.co)
+        ed.co += virtualTrafficSizeRaw - float64(virtualTrafficSize)
+
         if virtualTrafficSize > ed.maxValue * ed.numCounters {
             ed.floor = ed.maxValue
             ed.threshold = ed.floor + ed.beta_th
@@ -185,6 +189,7 @@ func (ed *EardetDtctr) Detect(flowID uint32, size uint32, t time.Duration) bool 
 
     //insert packet
     return ed.processPkt(flowID, size)
+
 }
 
 //add the packet to counters
@@ -324,6 +329,14 @@ func min(a, b uint32) uint32 {
         return a
     }
     return b
+}
+
+func round(val float64) uint32 {
+    if (val - float64(uint32(val)) < 0.5) {
+        return uint32(math.Floor(val))
+    } else {
+        return uint32(math.Ceil(val))
+    }
 }
 
 

@@ -106,6 +106,7 @@ func (rd *RlfdDtctr) Detect(flowID uint32, size uint32, t time.Duration) bool {
         //are we on the lowest level?
         if rd.level == d - 1 {
             //do cuckoo hashing
+            // TODO: check if cuckoo hashing from cuckoo package can be used here
             var alt bool
             altIndex := (flowID & 0x38) >> 3
             if (c.flowID == flowID && c.reset == rd.reset) {
@@ -156,5 +157,8 @@ func (rd *RlfdDtctr) Detect(flowID uint32, size uint32, t time.Duration) bool {
     return false
 }
 
-
+// Getter method for t_l
+func (rd *RlfdDtctr) Get_t_l() time.Duration {
+    return rd.t_l
+}
 
