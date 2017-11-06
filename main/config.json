@@ -1,0 +1,22 @@
+{
+    "exp_name": "test_exp",
+    "traffic_config": {
+        "link_capacity": 1250000000,
+        "max_pkt_num": 10000,       
+        "flow_spec_gamma": 1250000,
+        "flow_spec_beta": 6056,
+        "max_pkt_size": 1514,
+        "pcap_file": "../resource/10k-test-pkts.pcap",
+        "time_file": "../resource/10k-test-pkts.times"  
+    },
+    "EARDet_config": {
+        "gamma_low": 1250000,
+        "gamma_high": 12500000,
+        "beta_low": 6056
+    },
+    "RLFD_config": {
+        "gamma": 1250000,
+        "beta": 6056,
+        "t_l_factor": 1.0
+    }
+}
