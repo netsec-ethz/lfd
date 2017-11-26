@@ -9,16 +9,16 @@ import (
 
 var _ = fmt.Println
 
-// TODO(hao): make the RLFD configurable
+// TODO: make the RLFD configurable
 const (
     //number of counters in a virtual counter node
-    m = uint32(8)
+    // m = uint32(8)
+    m = uint32(128)
     //s = log2(m)
-    // TODO(hao): what is s?
-    s = uint32(3)
+    s = uint32(7)
     //must hold: s * d < 32
     //depth of the virtual counter tree
-    d = uint32(7)
+    d = uint32(4)
     //must hold: d >= roundUp(logm(n)) (n = number of flows)
 )
 
