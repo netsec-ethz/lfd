@@ -7,6 +7,8 @@ import (
     "os"
     "time"
     "bufio"
+    "strings"
+    "strconv"
 
     "github.com/google/gopacket"
     "github.com/google/gopacket/layers"
@@ -145,7 +147,7 @@ func convertToCaidaPkt(
     return pkt
 }
 
-//loades the caida trace file into packets
+//loads the caida trace file into packets
 func LoadPCAPFile(
         pcapFilename string, timesFilename string, maxNumPkts int) *TraceData{
     trace := newTraceData(maxNumPkts)
@@ -167,6 +169,44 @@ func LoadPCAPFile(
 
     trace.PacketsInitialized = true
     printCounters(trace)
+
+    return trace
+}
+
+func LoadTxtTraceFile(txtTraceFilename string, maxNumPkts int) *TraceData{
+    trace := newTraceData(maxNumPkts)
+    file, err := os.Open(txtTraceFilename)
+    if err != nil {
+        fmt.Println(err)
+    }
+    defer file.Close()
+
+    scanner := bufio.NewScanner(file)
+    for scanner.Scan() {
+        if trace.PacketCounter >= maxNumPkts { break }
+
+        line := scanner.Text()
+        strs := strings.Split(line, " ")
+        flowId, _ := strconv.Atoi(strs[0])
+        pktSize, _ := strconv.Atoi(strs[1])
+        
+        pkt := &CaidaPkt{}
+        pkt.Duration, _ = time.ParseDuration(strs[2] + "s")
+        pkt.Size = uint32(pktSize)
+        
+        bs := make([]byte, 4)
+        binary.LittleEndian.PutUint32(bs, uint32(flowId))
+        copy(pkt.Id[:4], bs)
+
+        trace.Packets[trace.PacketCounter] = pkt
+        trace.PacketCounter ++
+        // fmt.Printf("%d, %d, %f\n", pkt.Id, pkt.Size, pkt.Duration)
+    }
+    trace.PacketsInitialized = true
+
+    if err := scanner.Err(); err != nil {
+        fmt.Println(err)
+    }
 
     return trace
 }
