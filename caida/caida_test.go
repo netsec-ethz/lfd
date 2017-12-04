@@ -49,6 +49,7 @@ var (
     trace *TraceData
     pcapFilename = "../resource/10k-test-pkts.pcap"
     timesFilename = "../resource/10k-test-pkts.times"
+    txtTraceFilename = "../resource/synthetic-trace/synthetic-trace.txt"
     maxNumPkts = 10000
     pktNumInBinary int     // number of packets written into the binary file
 
@@ -66,6 +67,93 @@ func TestWriteParsedTraceToBinary(t *testing.T) {
     // the binary file has been generated
     // write binary file in temp.dat
     pktNumInBinary = writeParsedTraceToBinary(pcapFilename, timesFilename)
+}
+
+func TestLoadingPacketFromTxtTraceFile(t *testing.T) {
+    txt_maxNumPkts := 2600000
+    traceFromTxt := LoadTxtTraceFile(txtTraceFilename, txt_maxNumPkts)
+
+    //FP and FN
+    falsePositives := 0
+    falseNegatives := 0
+
+    //damage metric
+    overuseDamage := uint32(0)
+    falsePositiveDamage := uint32(0)
+
+    //blacklists
+    blackListRD := make(map[uint32]int)
+    blackListBD := make(map[uint32]int)
+
+    //initialize detectors
+    txt_p := float64(0.125) //10Gbps = 1.25B/ns
+    txt_gamma_l := float64(txt_p / 10000) // low-bandwidth threshold is flow spec
+    txt_beta_l := uint32(3028)       // low-bandwidth threshold is flow spec
+
+    // flow spec:
+    txt_beta := float64(txt_beta_l)
+    txt_gamma := float64(txt_gamma_l)
+    txt_t_l := time.Duration(txt_beta/txt_gamma)
+
+
+    rd := rlfd.NewRlfdDtctr(uint32(txt_beta), txt_gamma, txt_t_l)
+    bd := baseline.NewBaselineDtctr(txt_beta, txt_gamma)
+
+    var flowID uint32
+    var pkt *CaidaPkt
+    murmur3.ResetSeed()
+    rd.SetCurrentTime(traceFromTxt.Packets[0].Duration)
+    var resRD, resBD bool
+    for i := 0; i < len(traceFromTxt.Packets); i++ {
+        pkt = traceFromTxt.Packets[i]
+        flowID = murmur3.Murmur3_32_caida(&pkt.Id)
+        if _, ok := blackListRD[flowID]; !ok {
+            resRD = rd.Detect(flowID, pkt.Size, pkt.Duration)
+        } else {
+            resRD = true
+        }
+        if _, ok := blackListBD[flowID]; !ok {
+            resBD = bd.Detect(flowID, pkt.Size, pkt.Duration)
+        } else {
+            resBD = true
+        }
+
+        //update blacklists
+        if resRD {
+            blackListRD[flowID]++
+        }
+        if resBD {
+            blackListBD[flowID]++
+        }
+
+        //damage metric
+        if resBD && !resRD {
+            overuseDamage += pkt.Size
+        } else if !resBD && resRD {
+            falsePositiveDamage += pkt.Size
+        }
+    }
+
+    //compare blacklists
+    for k, _ := range blackListRD {
+        if _, ok := blackListBD[k]; !ok {
+            falsePositives++
+        }
+    }
+    for k, _ := range blackListBD {
+        if _, ok := blackListRD[k]; !ok {
+            falseNegatives++
+        }
+    }
+    fmt.Printf("TestRLFDPerformanceAgainstBaseline:\n")
+    fmt.Printf("rlfdDtctr: beta=%fB, gamma=%fB/ns\n", txt_beta, txt_gamma)
+    fmt.Printf("baselineDtctr: beta=%fB, gamma=%fB/ns\n", txt_beta, txt_gamma)
+    fmt.Printf("Seed for murmur3: %d\n", murmur3.GetSeed())
+    fmt.Printf("Number of flows: %d\n", bd.NumFlows)
+    fmt.Printf("Number of flows detected by baseline: %d\n", len(blackListBD))
+    fmt.Printf("Number of flows detected by rlfd: %d\n", len(blackListRD))
+    fmt.Printf("FP (flows): %d FN (flows): %d\n", falsePositives, falseNegatives)
+    fmt.Printf("overuseDamage: %dB, falsePositiveDamage: %dB\n", overuseDamage, falsePositiveDamage)
 }
 
 func TestPacketTimestamp(t *testing.T) {
@@ -295,7 +383,7 @@ func TestCLEFPerformanceAgainstBaseline(t *testing.T) {
 
     //initialize packets
     if trace == nil {
-        trace = LoadPCAPFile(pcapFilename, maxNumPkts)
+        trace = LoadPCAPFile(pcapFilename, timesFilename, maxNumPkts)
     }
 
     var pkt *CaidaPkt

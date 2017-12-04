@@ -1,0 +1,21 @@
+{
+    "exp_name": "test_exp",
+    "traffic_config": {
+        "link_capacity": 125000000,
+        "max_pkt_num": 2600000,       
+        "flow_spec_gamma": 12500,
+        "flow_spec_beta": 3028,
+        "max_pkt_size": 1514,
+        "txt_trace_file": "../resource/synthetic-trace/synthetic-trace.txt"
+    },
+    "EARDet_config": {
+        "gamma_low": 12500,
+        "gamma_high": 125000,
+        "beta_low": 6056
+    },
+    "RLFD_config": {
+        "gamma": 12500,
+        "beta": 6056,
+        "t_l_factor": 1.0
+    }
+}

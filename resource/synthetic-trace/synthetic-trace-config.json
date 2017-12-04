@@ -1,0 +1,61 @@
+{
+    "exp_name": "full_link_flat_20171125",
+    "run_EARDet": true,
+    "run_EFD": false,
+    "run_FMF": false,
+    "run_AMF": false,
+    "run_EARDet_EFD": false,
+    "run_FMD": false,
+    "debug_mode": false,
+    "traffic_config": {
+        "inbound_link_capacity": 500000000,
+        "outbound_link_capacity": 125000000,
+        "time_interval": 10,
+        "per_flow_reservation": 12500,
+        "full_use_flow_packet_size": 500,
+        "num_full_use_flows": 10000,
+        "num_under_use_flows": 0,
+        "attack_flow_packet_size": 500,
+        "num_attack_flows": 10,
+        "is_burst_attack": false,
+        "burst_duty_cycle_ratio": 0.1,
+        "burst_period_to_efd_period": 15,
+        "max_packet_size": 1514,
+        "flow_spec_burst_tolerance": 3028,
+        "max_num_admitted_flows": 10000,
+    },
+    "EARDet_config": {
+        "gamma_low": 12500,
+        "gamma_high": 125000,
+        "beta_low": 3028,
+        "max_incubation_time": 1.0,
+    },
+    "EFD_config": {
+        "gamma": 12500,
+        "burst": 3028,
+        "split_by_relative_value": false,
+    },
+    "FMF_config": {
+        "period": 0.2,
+        "num_stages": 4,
+        "flow_memory": true,
+        "flow_memory_counter_ratio": 0.5,
+        "least_value_eviction": false,
+    },
+    "AMF_config": {
+        "num_stages": 4,
+        "flow_memory": true,
+        "flow_memory_counter_ratio": 0.5,
+        "least_value_eviction": false,
+    },
+    "EARDet_EFD_config": {
+        "EFD_split_by_relative_value": false,
+        "EARDet_counter_ratio": 0.5,
+        "twin_EFD": true,
+        "twin_EFD_Tc2_adjust": 1.5,
+    },
+    "FMD_config": {
+        "least_value_eviction": false,
+    }
+    
+}

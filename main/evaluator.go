@@ -30,6 +30,7 @@ type Config struct {
         FlowSpecBeta int `json:"flow_spec_beta"`
         PcapFile string `json:"pcap_file"`
         TimeFile string `json:"time_file"`
+        TxtTraceFile string `json:"txt_trace_file"`
     } `json:"traffic_config"`
     EARDetConfig struct {
         GammaLow int `json:"gamma_low"`
@@ -68,6 +69,7 @@ func main() {
     maxPktNum := config.TrafficConfig.MaxPacketNum
     pcapFilename := config.TrafficConfig.PcapFile
     timesFilename := config.TrafficConfig.TimeFile
+    txtTraceFilename := config.TrafficConfig.TxtTraceFile
 
     // link capacity 10Gbps = 1.25B/ns
     p := float64(config.TrafficConfig.LinkCapacity) / NANO_SEC_PER_SEC
@@ -93,8 +95,15 @@ func main() {
     rd_gamma := float64(config.RLFDConfig.Gamma) / NANO_SEC_PER_SEC
     rd_beta := uint32(config.RLFDConfig.Beta)
 
-    trace := caida.LoadPCAPFile(pcapFilename, timesFilename, maxPktNum)
-
+    var trace *caida.TraceData
+    if pcapFilename != "" && timesFilename != "" {
+        trace = caida.LoadPCAPFile(pcapFilename, timesFilename, maxPktNum)
+    } else if txtTraceFilename != "" {
+        trace = caida.LoadTxtTraceFile(txtTraceFilename, maxPktNum)
+    } else {
+        fmt.Println("Please provide a trace file either in pcap or txt")
+        os.Exit(1)
+    }
 
     //FP and FN
     edFP := 0
