@@ -5,6 +5,7 @@ import (
     "time"
     "fmt"
     // "github.com/hosslen/lfd/murmur3"
+    "github.com/hosslen/lfd/cuckoo"
 )
 
 var _ = fmt.Println
@@ -36,6 +37,9 @@ type RlfdDtctr struct {
     //time spent on one level in ns
     t_l time.Duration
 
+    beta uint32
+    gamma float64
+
     //level we are on now
     level uint32
     //to track the maximum counter
@@ -57,6 +61,8 @@ func NewRlfdDtctr(beta uint32, gamma float64, t_l time.Duration) *RlfdDtctr {
     rd := &RlfdDtctr{}
 
     rd.t_l = t_l
+    rd.gamma = gamma
+    rd.beta = beta
     rd.th_rlfd = uint32(gamma*float64(t_l)) + beta
     rd.level = 0
     rd.bitmaskIndex = ((1 << s) - 1) << (32 - s) //(2^s - 1) << (32 - s)
@@ -81,6 +87,14 @@ func (rd *RlfdDtctr) GetDepth() uint32 {
 
 func (rd *RlfdDtctr) GetNumCountersPerNode() uint32 {
     return m
+}
+
+func (rd *RlfdDtctr) GetGamma() float64 {
+    return rd.gamma
+}
+
+func (rd *RlfdDtctr) GetBeta() uint32 {
+    return rd.beta
 }
 
 func (rd *RlfdDtctr) SetCurrentTime(t time.Duration) {
@@ -121,10 +135,11 @@ func (rd *RlfdDtctr) Detect(flowID uint32, size uint32, t time.Duration) bool {
         index := uint8((flowID & rd.bitmaskIndex) >> (29 - (3 * rd.level)))
         c := &rd.counters[index]
 
+
+
         //are we on the lowest level?
         if rd.level == d - 1 {
             //do cuckoo hashing
-            // TODO: check if cuckoo hashing from cuckoo package can be used here
             var alt bool
             altIndex := (flowID & 0x38) >> 3
             if (c.flowID == flowID && c.reset == rd.reset) {
@@ -175,8 +190,10 @@ func (rd *RlfdDtctr) Detect(flowID uint32, size uint32, t time.Duration) bool {
     return false
 }
 
-// Getter method for t_l
-func (rd *RlfdDtctr) Get_t_l() time.Duration {
-    return rd.t_l
+
+func (rd *RlfdDtctr) GetBlacklist() *cuckoo.CuckooTable {
+    return nil
 }
+
+func (rd *RlfdDtctr) SetBlacklist(blacklist *cuckoo.CuckooTable) {}
 

@@ -2,7 +2,13 @@ package baseline
 
 import (
     "time"
+    "fmt"
+
+    "github.com/hosslen/lfd/cuckoo"
+
 )
+
+var _ = fmt.Println
 
 type leakyBucket struct {
     //moment in time when last packet for this flow was received
@@ -20,10 +26,12 @@ type BaselineDtctr struct {
     NumFlows int
     //map that maps flowIDs to leakyBuckets
     buckets map[uint32](*leakyBucket)
+    // blacklist
+    blacklist *cuckoo.CuckooTable
 }
 
 //constructs a BaselineDtctr and returns a pointer to it
-func NewBaselineDtctr(beta, gamma float64) *BaselineDtctr {
+func NewBaselineDtctr(beta, gamma float64, blacklist *cuckoo.CuckooTable) *BaselineDtctr {
     bd := &BaselineDtctr{}
 
     //initialize buckets
@@ -32,6 +40,8 @@ func NewBaselineDtctr(beta, gamma float64) *BaselineDtctr {
     //set parameters: TH(t) = gamma*t + beta 
     bd.gamma = gamma
     bd.beta = beta
+
+    bd.blacklist = blacklist
 
     return bd
 }
@@ -61,12 +71,31 @@ func (bd *BaselineDtctr) Detect(flowID uint32, size uint32, t time.Duration) boo
 
     //check if the bucket overflows
     if bucket.count > bd.beta {
+        bd.blacklist.Insert(flowID, 0)
         return true;
     }
 
     return false;
 }
 
+
+func (bd *BaselineDtctr) GetBlacklist() *cuckoo.CuckooTable {
+    return bd.blacklist
+}
+
+
+func (bd *BaselineDtctr) SetBlacklist(blacklist *cuckoo.CuckooTable) {
+    bd.blacklist = blacklist
+}
+
+
+func (bd *BaselineDtctr) GetGamma() float64 {
+    return bd.gamma
+}
+
+func (bd *BaselineDtctr) GetBeta() float64 {
+    return bd.beta
+}
 
 
 

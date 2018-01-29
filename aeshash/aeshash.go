@@ -39,6 +39,12 @@ func (aesh *AESHasher) SetSeed(seed []byte) {
 }
 
 //---------------------------------------------------
+// Get seed
+func (aesh *AESHasher) GetSeed() []byte {
+    return aesh.seed
+}
+
+//---------------------------------------------------
 // Use AES encryption as a hash function on an input
 func (aesh *AESHasher) Hash_uint32(input *[16]byte) uint32 {
     aesh.hasher.Encrypt(aesh.output, (*input)[:])
