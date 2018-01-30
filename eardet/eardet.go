@@ -19,6 +19,8 @@ import (
     // "fmt"
     "time"
     "math"
+
+    "github.com/hosslen/lfd/cuckoo"
 )
 
 //TODO:
@@ -323,6 +325,13 @@ func (ed *EardetDtctr) resetFloor() {
     ed.threshold = ed.beta_th
     ed.floor = 0
 }
+
+func (ed *EardetDtctr) GetBlacklist() *cuckoo.CuckooTable {
+    return nil
+}
+
+func (ed *EardetDtctr) SetBlacklist(blacklist *cuckoo.CuckooTable) {}
+
 
 func min(a, b uint32) uint32 {
     if a < b {

@@ -3,12 +3,14 @@ package clef
 import (
     "time"
 
-    "github.com/hosslen/lfd/eardet"
-    "github.com/hosslen/lfd/murmur3"
-    "github.com/hosslen/lfd/rlfd"
+    "fmt"
 
+    "github.com/hosslen/lfd/eardet"
+    "github.com/hosslen/lfd/rlfd"
     "github.com/hosslen/lfd/cuckoo"
 )
+
+var _ = fmt.Println
 
 type leakyBucket struct {
     //moment in time when flow was inserted into watchlist
@@ -33,6 +35,10 @@ type ClefDtctr struct {
     watchlistTimeout time.Duration
     blacklist *cuckoo.CuckooTable
 
+    EdBlocked uint32
+    Rd1Blocked uint32
+    Rd2Blocked uint32
+
     //flow specification
     beta float64
     gamma float64
@@ -51,7 +57,11 @@ type ClefDtctr struct {
     resultsRlfd2 chan bool
 }
 
-func NewClefDtctr(eardet *eardet.EardetDtctr, rlfd1, rlfd2 *rlfd.RlfdDtctr, gamma, beta float64, maxWatchlistSize uint32) *ClefDtctr {
+func NewClefDtctr(eardet *eardet.EardetDtctr,
+                  rlfd1, rlfd2 *rlfd.RlfdDtctr,
+                  gamma, beta float64,
+                  maxWatchlistSize uint32,
+                  blacklist *cuckoo.CuckooTable) *ClefDtctr {
     cd := &ClefDtctr{}
 
     //set detectors
@@ -70,9 +80,9 @@ func NewClefDtctr(eardet *eardet.EardetDtctr, rlfd1, rlfd2 *rlfd.RlfdDtctr, gamm
 
     cd.watchlist = make(map[uint32](*leakyBucket))
     cd.maxWatchlistSize = maxWatchlistSize
-    cd.watchlistTimeout = rlfd1.Get_t_l() // TODO: think how to best set this value
+    cd.watchlistTimeout = rlfd1.GetT_l() // TODO: think how to best set this value
 
-    cd.blacklist = cuckoo.NewCuckoo()
+    cd.blacklist = blacklist
 
     cd.gamma = gamma
     cd.beta = beta
@@ -111,27 +121,17 @@ func (cd *ClefDtctr) cleanupWatchlist(t time.Duration) {
 }
 
 
-func (cd *ClefDtctr) Detect(id *[16]byte, size uint32, t time.Duration) bool {
-
-    //calculate murmur3 hash
-    flowID := murmur3.Murmur3_32_caida(id)
-
-    //check blacklist
-    if _, ok := cd.blacklist.LookUp(flowID); ok {
-        return true
-    }
-
-    //create pktTriple
-    pkt := pktTriple{flowID, size, t}
+func (cd *ClefDtctr) Detect(flowID uint32, size uint32, t time.Duration) bool {
 
     //check watchlist
-    flowBucket, ok := cd.watchlist[flowID]
+    flowBucket, inWatchlist := cd.watchlist[flowID]
 
     // If a flow is already in the watchlist, update its leaky bucket or purge it if expired
-    if ok {
+    if inWatchlist {
         if (t - flowBucket.firstTimestamp > cd.watchlistTimeout) {
             delete(cd.watchlist, flowID)
         } else {
+            //fmt.Println("Update leaky bucket for flow...")
             flowBucket.count += size
             legitimateTraffic := uint32(float64(t-flowBucket.lastTimestamp) * cd.gamma)
             if (flowBucket.count > legitimateTraffic){
@@ -140,13 +140,16 @@ func (cd *ClefDtctr) Detect(id *[16]byte, size uint32, t time.Duration) bool {
                 flowBucket.count = 0
             }
             flowBucket.lastTimestamp = t
+            //fmt.Println("Update .")
 
             if (float64(flowBucket.count) > cd.beta) {
-                cd.blacklist.Insert(flowID, 0)
                 return true
             }
         }
     }
+
+    //create pktTriple
+    pkt := pktTriple{flowID, size, t}
 
     //stuff pkt in channels
     cd.packetsForEardet <- pkt
@@ -154,31 +157,40 @@ func (cd *ClefDtctr) Detect(id *[16]byte, size uint32, t time.Duration) bool {
     cd.packetsForRlfd2 <- pkt
 
     //get results
-    detected := false
-    for i := 0; i < 3; i++ {
-        select {
-            case r := <-cd.resultsEardet:
-                detected = detected || r
-            case r := <-cd.resultsRlfd1:
-                detected = detected || r
-            case r := <-cd.resultsRlfd2:
-                detected = detected || r
-        }
-    }
+    r1 := <-cd.resultsEardet
+    r2 := <-cd.resultsRlfd1
+    r3 := <-cd.resultsRlfd2
+    detected := r1 || r2 || r3
+
+    if (r1) {cd.EdBlocked++}
+    if (r2) {cd.Rd1Blocked++}
+    if (r3) {cd.Rd2Blocked++}
 
     // Insert flow into watchlist
-    if detected && !ok {
+    if detected && !inWatchlist {
         // If we have to insert a flow into the watchlist and there is too little space,
         //  let's see if there are expired flow entries in the watchlist
         if (uint32(len(cd.watchlist)) > cd.maxWatchlistSize) {
             cd.cleanupWatchlist(t)
         }
-        // TODO: what if still not enough space?
-        cd.watchlist[flowID] = &leakyBucket{firstTimestamp: t}
+        //cd.watchlist[flowID] = &leakyBucket{firstTimestamp: t}
+        return true
     }
 
     return false
     
+}
+
+func (cd *ClefDtctr) GetBlacklist() *cuckoo.CuckooTable {
+    return cd.blacklist
+}
+
+func (cd *ClefDtctr) SetBlacklist(blacklist *cuckoo.CuckooTable) {
+    cd.blacklist = blacklist
+}
+
+func (cd *ClefDtctr) GetWatchlistSize() uint32 {
+    return uint32(len(cd.watchlist))
 }
 
 func eardetWorker(dtctr *eardet.EardetDtctr, packets <-chan pktTriple, results chan<- bool) {

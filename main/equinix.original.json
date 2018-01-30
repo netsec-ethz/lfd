@@ -1,0 +1,29 @@
+{
+    "exp_name": "test_exp",
+    "run_config": {
+        "detectors_to_evaluate": ["CLEF", "RLFD", "EARDet"]
+    },
+    "traffic_config": {
+        "link_capacity": 1250000000,
+        "max_pkt_num": 10000000,       
+        "flow_spec_gamma": 12500000,
+        "flow_spec_beta": 3028,
+        "max_pkt_size": 1514,
+        "pcap_file": "../resource/equinix-chicago.dirA.20160406-125912.UTC.pcap",
+        "time_file": "../resource/equinix-chicago.dirA.20160406-125912.UTC.times"  
+    },
+    "EARDet_config": {
+        "gamma_low": 1250000,
+        "gamma_high": 12500000,
+        "beta_low": 3028
+    },
+    "RLFD_config": {
+        "gamma": 12500000,
+        "beta": 3028,
+        "t_l_factor": 1.0
+    },
+    "CLEF_config": {
+        "attacker_flow_factor": 1.5,
+        "max_watchlist_size": 512
+    }
+}

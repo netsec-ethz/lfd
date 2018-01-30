@@ -30,7 +30,7 @@ import (
 )
 
 const (
-    maxLen      = 16
+    maxLen      = 100
     minIdxBytes = 10
     maxLoadFact = 0.5
 )
@@ -213,4 +213,8 @@ func (c *CuckooTable) reorganize() {
 func (c *CuckooTable) LoadFactor() float64 {
     tLen := 1 << c.idxBytes
     return float64(c.nEntries) / float64(tLen)
+}
+
+func (c *CuckooTable) GetNEntries() uint32 {
+    return c.nEntries
 }
