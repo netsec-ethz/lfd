@@ -176,7 +176,7 @@ func main() {
     fmt.Printf("Flow spec: gamma=%f, beta=%f\n", gamma, beta)
 
     evaluateDetectorAccuracy(bd, ed, rd, cd, sd, trace) 
-      
+
 
     fmt.Printf("\n--------------------------------------\n")
     fmt.Printf("\n=========Performance Tests============\n")
@@ -194,6 +194,10 @@ func main() {
     if (evalMap[RLFD_CONFIG_ID]) {
         evaluateDetectorPerformance(rd, RLFD_CONFIG_ID, trace)
     }
+    
+    evaluateDetectorPerformance(nil, "NO_DETECTION", trace)
+    evaluateDetectorPerformance(sd, "SlidingWindow", trace)
+
 
 }
 
@@ -376,10 +380,15 @@ func evaluateDetectorPerformance (dtctr Dtctr, dtctrName string, trace *caida.Tr
     var flowID uint32
     var pkt *caida.CaidaPkt
     var res, manuallyUpdateBlacklist bool
+    var blackList *cuckoo.CuckooTable
 
     aesh := aeshash.NewAESHasher([]byte("ABCDEFGHIJKLMNOP"))
 
-    blackList := dtctr.GetBlacklist()
+    if (dtctr != nil) {
+        blackList = dtctr.GetBlacklist()
+    } else {
+        blackList = nil
+    }
     if (blackList == nil) {
         manuallyUpdateBlacklist = true
         blackList = cuckoo.NewCuckoo()
@@ -394,10 +403,12 @@ func evaluateDetectorPerformance (dtctr Dtctr, dtctrName string, trace *caida.Tr
         flowID = aesh.Hash_uint32(&pkt.Id)
 
         // passing packet to detector
-        if _, ok := blackList.LookUp(flowID); !ok {
-            res = dtctr.Detect(flowID, pkt.Size, pkt.Duration)
-        } else {
-            res = true
+        if (dtctr != nil) {
+            if _, ok := blackList.LookUp(flowID); !ok {
+                res = dtctr.Detect(flowID, pkt.Size, pkt.Duration)
+            } else {
+                res = true
+            }
         }
 
         if (res && manuallyUpdateBlacklist) {

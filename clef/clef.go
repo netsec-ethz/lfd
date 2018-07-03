@@ -69,28 +69,14 @@ func NewClefDtctr(eardet *eardet.EardetDtctr,
     cd.rlfd1 = rlfd1
     cd.rlfd2 = rlfd2
 
-    //create channels
-    cd.packetsForEardet = make(chan pktTriple, 3)
-    cd.packetsForRlfd1 = make(chan pktTriple, 3)
-    cd.packetsForRlfd2 = make(chan pktTriple, 3)
-
-    cd.resultsEardet = make(chan bool, 3)
-    cd.resultsRlfd1 = make(chan bool, 3)
-    cd.resultsRlfd2 = make(chan bool, 3)
-
     cd.watchlist = make(map[uint32](*leakyBucket))
     cd.maxWatchlistSize = maxWatchlistSize
-    cd.watchlistTimeout = rlfd1.GetT_l() // TODO: think how to best set this value
+    cd.watchlistTimeout = rlfd1.GetT_l()
 
     cd.blacklist = blacklist
 
     cd.gamma = gamma
     cd.beta = beta
-
-    //start worker threads
-    go eardetWorker(cd.eardet, cd.packetsForEardet, cd.resultsEardet)
-    go rlfdWorker(cd.rlfd1, cd.packetsForRlfd1, cd.resultsRlfd1)
-    go rlfdWorker(cd.rlfd2, cd.packetsForRlfd2, cd.resultsRlfd2)
 
     return cd
 }
@@ -120,7 +106,6 @@ func (cd *ClefDtctr) cleanupWatchlist(t time.Duration) {
 
 }
 
-
 func (cd *ClefDtctr) Detect(flowID uint32, size uint32, t time.Duration) bool {
 
     //check watchlist
@@ -148,23 +133,8 @@ func (cd *ClefDtctr) Detect(flowID uint32, size uint32, t time.Duration) bool {
         }
     }
 
-    //create pktTriple
-    pkt := pktTriple{flowID, size, t}
-
-    //stuff pkt in channels
-    cd.packetsForEardet <- pkt
-    cd.packetsForRlfd1 <- pkt
-    cd.packetsForRlfd2 <- pkt
-
     //get results
-    r1 := <-cd.resultsEardet
-    r2 := <-cd.resultsRlfd1
-    r3 := <-cd.resultsRlfd2
-    detected := r1 || r2 || r3
-
-    if (r1) {cd.EdBlocked++}
-    if (r2) {cd.Rd1Blocked++}
-    if (r3) {cd.Rd2Blocked++}
+    detected := cd.eardet.Detect(flowID, size, t) || cd.rlfd1.Detect(flowID, size, t) || cd.rlfd2.Detect(flowID, size, t)
 
     // Insert flow into watchlist
     if detected && !inWatchlist {
@@ -191,16 +161,4 @@ func (cd *ClefDtctr) SetBlacklist(blacklist *cuckoo.CuckooTable) {
 
 func (cd *ClefDtctr) GetWatchlistSize() uint32 {
     return uint32(len(cd.watchlist))
-}
-
-func eardetWorker(dtctr *eardet.EardetDtctr, packets <-chan pktTriple, results chan<- bool) {
-    for p := range packets {
-        results <- dtctr.Detect(p.flowID, p.size, p.t)
-    }
-}
-
-func rlfdWorker(dtctr *rlfd.RlfdDtctr, packets <-chan pktTriple, results chan<- bool) {
-    for p := range packets {
-        results <- dtctr.Detect(p.flowID, p.size, p.t)
-    }
 }

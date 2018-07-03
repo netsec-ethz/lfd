@@ -1,5 +1,8 @@
 {
     "exp_name": "test_exp",
+    "run_config": {
+        "detectors_to_evaluate": ["CLEF", "RLFD", "EARDet"]
+    },
     "traffic_config": {
         "link_capacity": 1250000000,
         "max_pkt_num": 10000,       
@@ -18,5 +21,9 @@
         "gamma": 1250000,
         "beta": 6056,
         "t_l_factor": 1.0
+    },
+    "CLEF_config": {
+        "attacker_flow_factor": 1.5,
+        "max_watchlist_size": 512
     }
 }
